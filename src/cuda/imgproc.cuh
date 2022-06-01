@@ -1,0 +1,65 @@
+#pragma once
+#include <cuda_runtime_api.h>
+#include "device_array.hpp"
+
+#include "datatype.cuh"
+namespace device
+{
+    //  void depthBilateralFilter(const Depth& in, Depth& out, int ksz, float sigma_spatial, float sigma_depth);
+
+    //  void depthTruncation(Depth& depth, float threshold);
+
+    //  void depthBuildPyramid(const Depth& depth, Depth& pyramid, float sigma_depth);
+    __global__ void
+    mappoints_cube2tsdf(struct box32 *dev_pbox, struct ex_buf_ *point_buf);
+    //  void computeNormalsAndMaskDepth(const Intr& intr, Depth& depth, Normals& normals);
+    __global__ void
+    mcp(uint64_t val, unsigned int inval, struct exmatcloud_para *devpa);
+    //  void computePointNormals(const Intr& intr, const Depth& depth, Cloud& points, Normals& normals);
+    __global__ void compute_dists_kernel();
+    void computeDists(const ushort *depth[], ushort *dists[], float2 finv, float2 c);
+    __global__ void
+    scaleDepth(const PtrStepSz<unsigned short> depth, PtrStep<xyzPoints> scaled, PtrStep<xyzPoints> gcloud,
+               PtrStep<u32_4byte> zin, float *campose, const Intr intr);
+    __host__ void bilateralFilter(const PtrStepSz<unsigned short> &src, const PtrStepSz<unsigned short> &dst, int kernel_size,
+                                  float sigma_spatial, float sigma_depth);
+    __global__ void Integrate32(float *cam_K,
+                                int im_height, int im_width,
+                                float voxel_size, float trunc_margin,
+                                struct box32 **dev_boxptr, struct kernelPara *gpu_kpara,
+                                const PtrStepSz<xyzPoints> depthScaled);
+
+    __global__ void scaleDepthCloud(const PtrStepSz<unsigned short> depth, PtrStep<xyzPoints> scaled, float *campose, const Intr intr);
+    __global__ void
+    mappoints_cube2tsdf_batch(struct box32 *dev_pbox, struct ex_buf_ *point_buf);
+    __global__ void bilateral_kernel(const PtrStepSz<unsigned short> src, PtrStepSz<unsigned short> dst, const int ksz, const float sigma_spatial2_inv_half, const float sigma_depth2_inv_half);
+    __global__ void
+    cloud2grids(struct box32 *dev_pbox, UPoints *ps, size_t len_point);
+    __global__ void
+    cloud2grids_init(struct box32 *pboxmap);
+
+    __global__ void
+    extract_kernel(ex_buf *output_base, struct box32 *dev_pbox, exmatcloud_para *para);
+    __global__ void
+    extract_kernel_test(Point3dim *output_base, struct box32 *dev_pbox, exmatcloud_para *para);
+
+    __global__ void
+    kernel_change_type(struct box32 *dev_pbox, uint8_t val);
+
+    __global__ void
+    extract_kernel(ex_buf *output_base, struct box32 *dev_pbox, exmatcloud_para *para);
+
+    //  void cloudToDepth(const Cloud& cloud, Depth& depth);
+
+    //  void resizeDepthNormals(const Depth& depth, const Normals& normals, Depth& depth_out, Normals& normals_out);
+
+    //  void resizePointsNormals(const Cloud& points, const Normals& normals, Cloud& points_out, Normals& normals_out);
+
+    //  void waitAllDefaultStream();
+
+    //  void renderTangentColors(const Normals& normals, Image& image);
+
+    //  void renderImage(const Depth& depth, const Normals& normals, const Intr& intr, const Vec3f& light_pose, Image& image);
+
+    //  void renderImage(const Cloud& points, const Normals& normals, const Intr& intr, const Vec3f& light_pose, Image& image);
+}

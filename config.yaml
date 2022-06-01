@@ -1,0 +1,17 @@
+%YAML:1.0
+---
+mode: 1 #2 测试点云box与box32互转 3  点云转TSDF  4 tsdf转点云  5读取tsdf
+save_skip_list_num: 800  #2 load
+# matpose: /home/u20/dataset/loop/
+# matpose: /home/u20/dataset/paper/f2_pioneer_360/
+#985 grids
+# matpose: /home/u20/dataset/paper/rgbd_dataset_freiburg1_desk/
+# matpose: /home/u20/dataset/paper/f3_nostructure_texture_near_withloop/
+# matpose: /home/u20/dataset/paper/f1_desk/ #139
+#12112
+# matpose: /home/u20/dataset/paper/f1_floor
+# matpose: "/dataset/paper/f3_walking_static"
+matpose: "/dataset/paper/f2_pioneer_360"
+
+show_cloud: 1
+#True
