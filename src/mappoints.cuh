@@ -181,9 +181,14 @@ public:
         // std::cout << "cloudBoxs:" << cloudBoxs.size() << std::endl;
         for (auto &it : mp_cpuVoxel32)
         {
-            cv::Vec3f ptf;
-            cv::Vec3b cob;
-            it->pvoxel32->tobuff(_points, color, it->wordPos);
+            bool ret = it->pvoxel32->tobuff(_points, color, it->wordPos);
+            if (!ret)
+            {
+                delete it->pvoxel32;
+                delete it;
+                it = mp_cpuVoxel32.back();
+                mp_cpuVoxel32.pop_back();
+            }
         }
     }
     void test(cv::Mat &pt, cv::Mat &color, cv::Mat &expoints, cv::Mat &excolor)

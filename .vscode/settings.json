@@ -107,6 +107,14 @@
         "matrixf": "cpp",
         "plane": "cpp",
         "shape": "cpp",
-        "matrixtemplate": "cpp"
+        "matrixtemplate": "cpp",
+        "*.txx": "cpp",
+        "bufferobject": "cpp",
+        "glextensions": "cpp",
+        "node": "cpp",
+        "program": "cpp",
+        "state": "cpp",
+        "stateset": "cpp",
+        "uniform": "cpp"
     }
 }

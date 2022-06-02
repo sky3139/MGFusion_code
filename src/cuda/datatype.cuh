@@ -46,7 +46,7 @@ struct Intr
     }
     void print()
     {
-        printf("%f,%f,%f,%f sca:%f,%f\n", fx, fy, cx, cy,sca,finv.x);
+        printf("%f,%f,%f,%f sca:%f,%f\n", fx, fy, cx, cy, sca, finv.x);
     }
 };
 
@@ -139,8 +139,12 @@ union u32_4byte
 struct Voxel32
 {
     u32_4byte index;
-    void tobuff(cv::Mat &points, cv::Mat &color, const u64B4 &center)
+    bool tobuff(cv::Mat &points, cv::Mat &color, const u64B4 &center)
     {
+        if (index.cnt > 0)
+            index.cnt--;
+        else
+            return false;
         for (int8_t pt_grid_z = 0; pt_grid_z < CUBEVOXELSIZE; pt_grid_z++)
         {
             for (int8_t pt_grid_y = 0; pt_grid_y < CUBEVOXELSIZE; pt_grid_y++)
@@ -175,6 +179,7 @@ struct Voxel32
                 }
             }
         }
+        return true;
     }
     void tobuff_all_space(cv::Mat &points, cv::Mat &color, const u64B4 &center);
 

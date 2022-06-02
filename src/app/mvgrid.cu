@@ -552,7 +552,7 @@ struct TSDF
             // cudaStreamSynchronize();
 
             // 移除
-            if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 20 == 1)
+            if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 100 == 1)
             {
                 // //     // tm.Start();
                 mm.savenode_cube_(mm.cpu_kpara.center);

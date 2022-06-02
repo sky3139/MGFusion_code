@@ -96,6 +96,7 @@ public:
         {
             struct CpuVoxel32 *pbox = new struct CpuVoxel32();
             pbox->wordPos = center;
+
             ck(cudaMemcpyAsync((void *)(pbox->pvoxel32), (void *)(gpu_pbox_use[i]), sizeof(struct Voxel32), cudaMemcpyDeviceToHost, stream)); //拷贝到CPU
             cpu_pbox_use.push_back(pbox);
         }
@@ -104,7 +105,8 @@ public:
         // // tm.Start();
         for (int i = 0; i < gpu_pbox_use.size(); i++) //转换成全局坐标
         {
-            mcps.mp_cpuVoxel32.push_back(cpu_pbox_use[i + start_id]); 
+            cpu_pbox_use[i + start_id]->pvoxel32->index.cnt = 10;
+            mcps.mp_cpuVoxel32.push_back(cpu_pbox_use[i + start_id]);
         }
         cudaStreamDestroy(stream);
         // std::vector<struct Voxel32 *>().swap(cpu_pbox_use);
