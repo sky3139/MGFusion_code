@@ -22,7 +22,6 @@
 // 2048
 #define ALLL_NUM 2048 * 2
 
-
 class mapmanages
 {
 
@@ -31,138 +30,141 @@ public:
     bool use_skip_list = false;
 
     cv::Mat curr_point, curr_color;
-    // std::vector<struct box32 *> pboxs;
-    struct box32 **pboxs; //已申请的CURR_BOX_NUM个地址
-    SkipList<uint64_t, struct box32 *> *pskipList;
+    // std::vector<struct Voxel32 *> pboxs;
+    struct Voxel32 **pboxs; //已申请的CURR_BOX_NUM个地址
+    SkipList<uint64_t, struct Voxel32 *> *pskipList;
 
     mappoints mcps;
-    struct box32 *dev_boxpool;                //已申请的ALLL_NUM个box空间的首地址
-    std::stack<struct box32 *> gpu_pbox_free; //记录空闲的box在GPU中的地址
-    std::vector<struct box32 *> gpu_pbox_use; //记录已经使用的box在GPU中的地址
-    std::vector<struct box32 *> cpu_pbox_use; //记录已经使用的box在CPU中的地址
+    struct Voxel32 *dev_boxpool;                //已申请的ALLL_NUM个box空间的首地址
+    std::stack<struct Voxel32 *> gpu_pbox_free; //记录空闲的box在GPU中的地址
+    std::vector<struct Voxel32 *> gpu_pbox_use; //记录已经使用的box在GPU中的地址
 
     cv::Mat points, color;
     struct kernelPara cpu_kpara;
     uint8_t tfidex = 0;
 
     mapmanages();
-    struct box32 *getidlebox(uint32_t val)
+    // bool find_in_cpu_pbox_use(uint64_t idx, struct Voxel32 *&cpu_pbox)
+    // {
+    //     for (auto &it : cpu_pbox_use)
+    //     {
+    //         if (idx == it->wordPos)
+    //             return true;
+    //     }
+    //     return false;
+    // }
+    struct Voxel32 *getidlebox(uint32_t val)
     {
         assert(gpu_pbox_free.size() != 0);
-        struct box32 *cpu_pbox;
+        struct Voxel32 *cpu_pbox = nullptr;
         u32_4byte u32;
         u32.u32 = val;
 
-        u64_4byte u64; //计算绝对坐标
+        u64B4 u64; //计算绝对坐标
         u64.x = u32.x + cpu_kpara.center.x;
         u64.y = u32.y + cpu_kpara.center.y;
         u64.z = u32.z + cpu_kpara.center.z;
         // u32.type = 0x1;
-        //得到一个空闲的空间
-        struct box32 *gpu_pbox = gpu_pbox_free.top();
+        //得到一个空闲的GPU空间
+        struct Voxel32 *gpu_pbox = gpu_pbox_free.top();
 
-        // bool exist = pskipList->search_element(u64.u64, cpu_pbox);
+        // if (exist) //如果有记录,就给当前记录赋值
+        // {
+        //     cudaMemcpy((void *)gpu_pbox, (void *)(cpu_pbox), sizeof(struct Voxel32), cudaMemcpyHostToDevice);
+        //     delete cpu_pbox;
+        // }
 
         bool exist = mcps.getCube32(u64.u64, cpu_pbox);
-
-        if (exist) //如果有记录
+        if (exist) //如果有记录,就给当前记录赋值
         {
-            cudaMemcpy((void *)gpu_pbox, (void *)(cpu_pbox), sizeof(struct box32), cudaMemcpyHostToDevice);
-            pskipList->delete_element(u64.u64);
-            // std::cout<<__LINE__<<std::endl;
+            cudaMemcpy((void *)gpu_pbox, (void *)(cpu_pbox), sizeof(struct Voxel32), cudaMemcpyHostToDevice);
             delete cpu_pbox;
-            // std::cout<<__LINE__<<std::endl;
         }
+
         gpu_pbox_free.pop();
         gpu_pbox_use.push_back(gpu_pbox);
-        // std::cout << gpu_pbox_free.size() << std::endl;
         return gpu_pbox;
     }
-    void savenode_cube_()
+    void savenode_cube_(u64B4 &center)
     {
-        int start_id = cpu_pbox_use.size();
+        std::vector<struct CpuVoxel32 *> cpu_pbox_use; //记录已经使用的box在CPU中的地址
 
+        int start_id = cpu_pbox_use.size();
+        // u64B4 u64wd;
+        // u64wd.x = cpu_pbox.index.x + center.x;
+        // u64wd.y = cpu_pbox.index.y + center.y;
+        // u64wd.z = cpu_pbox.index.z + center.z;
         cudaStream_t stream;
         cudaStreamCreate(&stream);
 
-        // Timer tm;
-        // tm.Start();
         for (int i = 0; i < gpu_pbox_use.size(); i++)
         {
-            struct box32 *pbox = new struct box32();
+            struct CpuVoxel32 *pbox = new struct CpuVoxel32();
+            pbox->wordPos = center;
+            ck(cudaMemcpyAsync((void *)(pbox->pvoxel32), (void *)(gpu_pbox_use[i]), sizeof(struct Voxel32), cudaMemcpyDeviceToHost, stream)); //拷贝到CPU
             cpu_pbox_use.push_back(pbox);
-            cudaMemcpyAsync((void *)(pbox), (void *)(gpu_pbox_use[i]), sizeof(struct box32), cudaMemcpyDeviceToHost, stream);
-            checkCUDA(cudaGetLastError());
         }
         ck(cudaStreamSynchronize(stream));
-
-        // tm.PrintSeconds(" a");
-        // tm.Start();
-        for (int i = 0; i < gpu_pbox_use.size(); i++)
+        // // tm.PrintSeconds(" a");
+        // // tm.Start();
+        for (int i = 0; i < gpu_pbox_use.size(); i++) //转换成全局坐标
         {
-            struct box32 *pbox = cpu_pbox_use[i + start_id];
-
-            u64_4byte u64;
-            u64.x = pbox->index.x + cpu_kpara.center.x;
-            u64.y = pbox->index.y + cpu_kpara.center.y;
-            u64.z = pbox->index.z + cpu_kpara.center.z;
-            pbox->index.x += cpu_kpara.center.x;
-            pbox->index.y += cpu_kpara.center.y;
-            pbox->index.z += cpu_kpara.center.z;
-            if (use_skip_list)
-                pskipList->insert_element(u64.u64, pbox);
+            struct CpuVoxel32 *pbox = cpu_pbox_use[i + start_id];
+            // pbox->index.x += cpu_kpara.center.x;
+            // pbox->index.y += cpu_kpara.center.y;
+            // pbox->index.z += cpu_kpara.center.z;
+            // if (use_skip_list)
+            //     pskipList->insert_element(u64.u64, pbox);
             mcps.addpoint(*pbox, cpu_kpara.center);
-
-            // cpu_pbox_use.push_back(pbox);
         }
-        // tm.PrintSeconds(" b");
+        // // tm.PrintSeconds(" b");
         cudaStreamDestroy(stream);
+        // std::vector<struct Voxel32 *>().swap(cpu_pbox_use);
     }
     void savenode_only_mini_memory()
     {
-        for (int i = 0; i < gpu_pbox_use.size(); i++)
-        {
-            struct box32 *pbox = new struct box32();
-            cudaMemcpy((void *)(pbox), (void *)(gpu_pbox_use[i]), sizeof(struct box32), cudaMemcpyDeviceToHost);
-            checkCUDA(cudaGetLastError());
-            u64_4byte u64;
-            u64.x = pbox->index.x + cpu_kpara.center.x;
-            u64.y = pbox->index.y + cpu_kpara.center.y;
-            u64.z = pbox->index.z + cpu_kpara.center.z;
-            pbox->index.x += cpu_kpara.center.x;
-            pbox->index.y += cpu_kpara.center.y;
-            pbox->index.z += cpu_kpara.center.z;
-            if (use_skip_list)
-                pskipList->insert_element(u64.u64, pbox);
-            mcps.addpoint(*pbox, cpu_kpara.center);
-            delete pbox;
-        }
+        // for (int i = 0; i < gpu_pbox_use.size(); i++)
+        // {
+        //     struct Voxel32 *pbox = new struct Voxel32();
+        //     cudaMemcpy((void *)(pbox), (void *)(gpu_pbox_use[i]), sizeof(struct Voxel32), cudaMemcpyDeviceToHost);
+        //     checkCUDA(cudaGetLastError());
+        //     u64B4 u64;
+        //     u64.x = pbox->index.x + cpu_kpara.center.x;
+        //     u64.y = pbox->index.y + cpu_kpara.center.y;
+        //     u64.z = pbox->index.z + cpu_kpara.center.z;
+        //     pbox->index.x += cpu_kpara.center.x;
+        //     pbox->index.y += cpu_kpara.center.y;
+        //     pbox->index.z += cpu_kpara.center.z;
+        //     if (use_skip_list)
+        //         pskipList->insert_element(u64.u64, pbox);
+        //     mcps.addpoint(*pbox, cpu_kpara.center);
+        //     delete pbox;
+        // }
     }
     void resetnode()
     {
-        struct box32 srcbox;
-        srcbox.init();
+        struct Voxel32 srcbox;
 
         cudaStream_t stream;
         cudaStreamCreate(&stream);
         // std::cout << "size=" << gpu_pbox_use.size() << " " << 0 << std::endl;
         for (int i = 0; i < gpu_pbox_use.size(); i++)
         {
-            cudaMemcpyAsync((void *)(gpu_pbox_use[i]), (void *)(&srcbox), sizeof(struct box32), cudaMemcpyHostToDevice, stream);
+            cudaMemcpyAsync((void *)(gpu_pbox_use[i]), (void *)(&srcbox), sizeof(struct Voxel32), cudaMemcpyHostToDevice, stream);
             checkCUDA(cudaGetLastError());
             gpu_pbox_free.push(gpu_pbox_use[i]);
         }
-        std::vector<struct box32 *>().swap(gpu_pbox_use);
-        memset(pboxs, 0, sizeof(struct box32 *) * CURR_BOX_NUM);
+        std::vector<struct Voxel32 *>().swap(gpu_pbox_use);
+        memset(pboxs, 0, sizeof(struct Voxel32 *) * CURR_BOX_NUM);
         ck(cudaStreamSynchronize(stream));
         cudaStreamDestroy(stream);
     }
-    void movenode(u64_4byte &center)
+    void movenode(u64B4 &center)
     {
-        struct box32 srcbox;
+        struct Voxel32 srcbox;
         u32_4byte u32;
         // std::cout << "size=" << gpu_pbox_use.size() << " " << 0 << std::endl;
-        struct box32 **cpu_pbox = (struct box32 **)calloc(CURR_BOX_NUM, sizeof(struct box32 *));
+        struct Voxel32 **cpu_pbox = (struct Voxel32 **)calloc(CURR_BOX_NUM, sizeof(struct Voxel32 *));
 
         for (uint32_t i = 0; i < CURR_BOX_NUM; i++)
         {
@@ -184,51 +186,51 @@ public:
         free(pboxs);
         pboxs = cpu_pbox;
         // std::cout << "size=" << gpu_pbox_use.size() << " " << 0 << std::endl;
-        // std::vector<struct box32 *>().swap(gpu_pbox_use);
+        // std::vector<struct Voxel32 *>().swap(gpu_pbox_use);
         // std::cout << "size=" << gpu_pbox_use.size() << " " << 0 << std::endl;
     }
-    void exidlebx(cv::Mat &_points, cv::Mat &color, u64_4byte &center)
+    void exidlebx(cv::Mat &_points, cv::Mat &color, u64B4 &center)
     {
-        struct box32 *gpu_pbox;
-        int num = cpu_pbox_use.size();
-        ck(cudaMalloc((void **)&gpu_pbox, sizeof(struct box32) * num));
-        checkCUDA(cudaGetLastError());
+        // struct Voxel32 *gpu_pbox;
+        // int num = cpu_pbox_use.size();
+        // ck(cudaMalloc((void **)&gpu_pbox, sizeof(struct Voxel32) * num));
+        // checkCUDA(cudaGetLastError());
 
-        for (int i = 0; i < num; i++)
-        {
-            cpu_pbox_use[i]->index.cnt = 0;
-            cudaMemcpy((void *)(&(gpu_pbox[i])), (void *)(cpu_pbox_use[i]), sizeof(struct box32), cudaMemcpyHostToDevice);
-            checkCUDA(cudaGetLastError());
-            delete cpu_pbox_use[i];
-        }
-        u64_4byte u64;
-        exmatcloud_bynum(_points, color, u64, gpu_pbox, num);
-        cudaFree(gpu_pbox);
-        std::vector<struct box32 *>().swap(cpu_pbox_use);
+        // for (int i = 0; i < num; i++)
+        // {
+        //     cpu_pbox_use[i]->index.cnt = 0;
+        //     cudaMemcpy((void *)(&(gpu_pbox[i])), (void *)(cpu_pbox_use[i]), sizeof(struct Voxel32), cudaMemcpyHostToDevice);
+        //     checkCUDA(cudaGetLastError());
+        //     delete cpu_pbox_use[i];
+        // }
+        // u64B4 u64;
+        // exmatcloud_bynum(_points, color, u64, gpu_pbox, num);
+        // cudaFree(gpu_pbox);
+        // std::vector<struct Voxel32 *>().swap(cpu_pbox_use);
     }
-    void skiplistbox(cv::Mat &_points, cv::Mat &color, u64_4byte &center);
+    void skiplistbox(cv::Mat &_points, cv::Mat &color, u64B4 &center);
     void savefile(std::string fname = "map.bin")
     {
-        std::vector<struct box32 *> pboxs;
+        std::vector<struct Voxel32 *> pboxs;
         std::vector<uint64_t> pkey;
         pskipList->display_list(pkey, pboxs);
         std::size_t num = pboxs.size();
         std::fstream file(fname, std::ios::out | std::ios::binary); // | ios::app
         file.write(reinterpret_cast<char *>(&num), sizeof(size_t));
-        char *pchCompressed = new char[sizeof(struct box32)];
+        char *pchCompressed = new char[sizeof(struct Voxel32)];
         std::size_t all_size = 0, de_size = 0;
 
         for (int i = 0; i < num; i++)
         {
-            int nCompressedSize = LZ4_compress_default((const char *)(pboxs[i]), pchCompressed, sizeof(struct box32), sizeof(struct box32));
-            all_size += sizeof(struct box32) + sizeof(int);
+            int nCompressedSize = LZ4_compress_default((const char *)(pboxs[i]), pchCompressed, sizeof(struct Voxel32), sizeof(struct Voxel32));
+            all_size += sizeof(struct Voxel32) + sizeof(int);
             de_size += nCompressedSize;
             // pboxs[i]->index.x =u64.x ;
             // pboxs[i]->index.y =u64.y;
             // pboxs[i]->index.z =u64.z ;
             file.write(reinterpret_cast<char *>(&nCompressedSize), sizeof(int));
             file.write(reinterpret_cast<char *>(pchCompressed), nCompressedSize);
-            // file.write(reinterpret_cast<char *>(pboxs[i]), sizeof(struct box32));
+            // file.write(reinterpret_cast<char *>(pboxs[i]), sizeof(struct Voxel32));
         }
         delete[] pchCompressed;
         printf("SAVE:item=%ld,%ld MB,%ld MB\n", num, de_size >> 20, all_size >> 20);
@@ -240,17 +242,17 @@ public:
         std::size_t num;
         fin.read((char *)&num, sizeof(size_t));
         std::cout << num << std::endl;
-        struct box32 cpu_pbox;
+        struct Voxel32 cpu_pbox;
         std::size_t gpu_box_cnt = std::min(num, 4000UL);
-        struct box32 *gpu_pbox;
+        struct Voxel32 *gpu_pbox;
         std::cout << "gpu_pbox:" << gpu_box_cnt << std::endl;
 
-        ck(cudaMalloc((void **)&gpu_pbox, sizeof(struct box32) * gpu_box_cnt));
+        ck(cudaMalloc((void **)&gpu_pbox, sizeof(struct Voxel32) * gpu_box_cnt));
         checkCUDA(cudaGetLastError());
 
-        char *pchCompressedInput = new char[sizeof(struct box32)];
+        char *pchCompressedInput = new char[sizeof(struct Voxel32)];
 
-        u64_4byte u64;
+        u64B4 u64;
         u64.u64 = 0;
         // std::size_t all_size=0,de_size=0;
         for (int i = 0; i < num; i++)
@@ -265,16 +267,16 @@ public:
             int nInputSize;
             fin.read((char *)&nInputSize, sizeof(int));
             fin.read((char *)pchCompressedInput, nInputSize);
-            // std::cout<<"nInputSize:"<<nInputSize<<"  "<<sizeof(  struct box32)<< std::endl;
+            // std::cout<<"nInputSize:"<<nInputSize<<"  "<<sizeof(  struct Voxel32)<< std::endl;
 
-            LZ4_decompress_safe(pchCompressedInput, (char *)&cpu_pbox, sizeof(struct box32), sizeof(struct box32));
+            LZ4_decompress_safe(pchCompressedInput, (char *)&cpu_pbox, sizeof(struct Voxel32), sizeof(struct Voxel32));
             // de_size
             cpu_pbox.index.cnt = 0;
 
             // mps.addpoint(cpu_pbox);
-            // fin.read((char *)&cpu_pbox,  sizeof( struct box32));
+            // fin.read((char *)&cpu_pbox,  sizeof( struct Voxel32));
             // std::cout<<i<<" "<<cpu_pbox.index.u32 << std::endl;
-            cudaMemcpy((void *)(&(gpu_pbox[i])), (void *)(&cpu_pbox), sizeof(struct box32), cudaMemcpyHostToDevice);
+            cudaMemcpy((void *)(&(gpu_pbox[i])), (void *)(&cpu_pbox), sizeof(struct Voxel32), cudaMemcpyHostToDevice);
             checkCUDA(cudaGetLastError());
         }
         mcps.load("maptest.cube.cloud");
@@ -293,13 +295,13 @@ public:
         std::ifstream fin("map.bin", std::ios::binary);
         std::size_t num;
         fin.read((char *)&num, sizeof(size_t));
-        struct box32 cpu_pbox;
-        u64_4byte u64;
+        struct Voxel32 cpu_pbox;
+        u64B4 u64;
 
         for (int i = 0; i < num; i++)
         {
 
-            fin.read((char *)&cpu_pbox, sizeof(struct box32));
+            fin.read((char *)&cpu_pbox, sizeof(struct Voxel32));
             cpu_pbox.tobuff(_points, color, u64);
         }
         fin.close();
@@ -307,7 +309,7 @@ public:
     void cloud2tsdf(cv::Mat &_points, cv::Mat &color, cv::Mat &expoints, cv::Mat &excolor)
     {
         // std::cout<<_points.rows<<std::endl;
-        std::map<uint32_t, struct box32 *> boxmap;
+        std::map<uint32_t, struct Voxel32 *> boxmap;
         for (std::size_t i = 0; i < _points.rows; i++) //
         {
             u32_4byte u64;
@@ -320,7 +322,7 @@ public:
             u64.y = std::floor(retf[1]);
             u64.z = std::floor(retf[2]);
 
-            std::map<uint32_t, struct box32 *>::iterator iter = boxmap.find(u64.u32);
+            std::map<uint32_t, struct Voxel32 *>::iterator iter = boxmap.find(u64.u32);
             if (iter != boxmap.end())
             {
                 //找到了
@@ -328,7 +330,7 @@ public:
             else
             {
                 //没找到
-                boxmap[u64.u32] = new struct box32();
+                boxmap[u64.u32] = new struct Voxel32();
             }
             // boxmap.is
             //             if()
@@ -356,13 +358,13 @@ public:
             //             std::cout<<retf<<std::endl;
         }
         std::cout << __LINE__ << std::endl;
-        u64_4byte u640;
+        u64B4 u640;
         std::cout << boxmap.size() << std::endl;
 
         for (auto &kv : boxmap)
         {
-            struct box32 *p = kv.second;
-            // u64_4byte u64;
+            struct Voxel32 *p = kv.second;
+            // u64B4 u64;
             // u64.u64=kv.first;
             // p->index.u32.x=u64.u32.x;
             // p->index.u32.y=u64.u32.y;
@@ -378,20 +380,20 @@ public:
 
         mcps.test(pt, color, expoints, excolor);
     }
-    static void exmatcloud_bynum(cv::Mat &_points, cv::Mat &color, u64_4byte center, struct box32 *gpu, int number);
-    void exmatcloud(u64_4byte center);
+    static void exmatcloud_bynum(cv::Mat &_points, cv::Mat &color, u64B4 center, struct Voxel32 *gpu, int number);
+    void exmatcloud(u64B4 center);
 
     void save_tsdf_mode_grids(std::string name)
     {
         std::fstream file(cv::format("%sgrids.bin", name.c_str()), std::ios::out | std::ios::binary); // | ios::app
-        struct box32 pboxs;
+        struct Voxel32 pboxs;
         size_t len = gpu_pbox_use.size();
         file.write(reinterpret_cast<char *>(&len), sizeof(size_t));
 
         for (int i = 0; i < gpu_pbox_use.size(); i++)
         {
-            ck(cudaMemcpy((void *)&pboxs, (void *)(gpu_pbox_use[i]), sizeof(struct box32), cudaMemcpyDeviceToHost));
-            file.write(reinterpret_cast<char *>(&pboxs), sizeof(struct box32));
+            ck(cudaMemcpy((void *)&pboxs, (void *)(gpu_pbox_use[i]), sizeof(struct Voxel32), cudaMemcpyDeviceToHost));
+            file.write(reinterpret_cast<char *>(&pboxs), sizeof(struct Voxel32));
         }
         std::cout << gpu_pbox_use.size() << std::endl;
         file.close();
@@ -499,7 +501,7 @@ public:
         {
             if ((mm.pboxs)[i] == NULL)
                 continue;
-            cudaMemcpy((void *)&srcbox, (void *)((*pboxs)[i]), sizeof(box32), cudaMemcpyDeviceToHost);
+            cudaMemcpy((void *)&srcbox, (void *)((*pboxs)[i]), sizeof(Voxel32), cudaMemcpyDeviceToHost);
             checkCUDA(cudaGetLastError());
             u32_4byte u32 = srcbox.index;
             for (int8_t pt_grid_z = 0; pt_grid_z < 32; pt_grid_z++)

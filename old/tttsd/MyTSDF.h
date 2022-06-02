@@ -29,14 +29,14 @@ union u32_4byte
   uint32_t u32 = 0x00000000;
   int8_t byte4[4];
 };
-struct box32
+struct Voxel32
 {
   uint32_t index = 0xffffffff;
   // int16_t x;
   // int16_t y;
   // int16_t z;
 
-  // box32(uint32_t &_index)
+  // Voxel32(uint32_t &_index)
   // {
   //   index = _index;
   // }
@@ -59,7 +59,7 @@ struct box32
     // file.write(reinterpret_cast<char *>(&cols), 4);
     // file.write(reinterpret_cast<char *>(&rows), 4);
     // printf("SAVE:cols=%d,type=%d,rows=%d,channels=%d\n", cols, type, rows, channl);
-    file.write(reinterpret_cast<char *>(&index), sizeof(box32));
+    file.write(reinterpret_cast<char *>(&index), sizeof(Voxel32));
     file.close();
     return true;
   }
@@ -72,9 +72,9 @@ struct box32
       return 0;
     }
     // file.read(reinterpret_cast<char *>(&data), sizeof(struct _data));
-    file.seekg(sizeof(box32) * _index);
-    // cout << "sizeof(box32)*index:" << sizeof(box32) * index << "  " << file.gcount() << endl;
-    file.read(reinterpret_cast<char *>(&index), sizeof(box32));
+    file.seekg(sizeof(Voxel32) * _index);
+    // cout << "sizeof(Voxel32)*index:" << sizeof(Voxel32) * index << "  " << file.gcount() << endl;
+    file.read(reinterpret_cast<char *>(&index), sizeof(Voxel32));
     // file.read(reinterpret_cast<char *>(pVoxel->byte), sizeof(Voxel)*32*32*32);
     // std::cout << "[INFO] "<<_index<< std::endl;
     // for (int i = 0; i < data.pic_number; i++)
@@ -118,7 +118,7 @@ struct box32
     }
   }
 };
-union u64_4byte
+union u64B4
 {
   uint64_t u64 = 0x00;
   struct
@@ -144,7 +144,7 @@ class Warehouse
 {
 private:
 public:
-  vector<box32 *> box32s; //以已经分配了的空间,并且在使用
+  vector<Voxel32 *> box32s; //以已经分配了的空间,并且在使用
   Warehouse()
   {
     box32s.reserve(512);
@@ -153,7 +153,7 @@ public:
   {
     for (int i = 0; i < number; i++)
     {
-      box32s.push_back(new struct box32);
+      box32s.push_back(new struct Voxel32);
     }
   }
 };
@@ -162,10 +162,10 @@ class MyTSDF
 private:
   /* data */
 public:
-  vector<box32 *> box32s; //以已经分配了的空间,并且在使用
-  // std::vector<box32 *> pbox32s(4194304, {NULL});
-  vector<box32 *> *pbox32s; //存放所有大体素的地址
-  // box32 (*pbox32s);//[ADDRESS_NUMBER]; //存放所有大体素的地址
+  vector<Voxel32 *> box32s; //以已经分配了的空间,并且在使用
+  // std::vector<Voxel32 *> pbox32s(4194304, {NULL});
+  vector<Voxel32 *> *pbox32s; //存放所有大体素的地址
+  // Voxel32 (*pbox32s);//[ADDRESS_NUMBER]; //存放所有大体素的地址
 
   unordered_set<uint32_t> pre_box;
   int alsize = 1024;
@@ -201,7 +201,7 @@ public:
   //       // box32s.resize(alsize); //resize()既修改capacity大小，也修改size大小。
   //       for (int i = 0; i < alsize; i++)
   //       {
-  //         struct box32 *pbox32s_l = new struct box32();
+  //         struct Voxel32 *pbox32s_l = new struct Voxel32();
   //         // pbox32s_l->weight = new float[32 * 32 * 32];
   //         assert(pbox32s_l->pVoxel);
   //         box32s.push_back(pbox32s_l);

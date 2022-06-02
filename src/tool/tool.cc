@@ -4,7 +4,7 @@
 #include <fstream>
 #include <opencv2/opencv.hpp>
 // #include "tsdf.cuh"
-#include "../cuda/datatype.cuh"
+// #include "../cuda/datatype.cuh"
 
 using namespace std;
 // dataset::dataset(std::string path)
@@ -89,6 +89,9 @@ using namespace std;
 //     file.close();
 //     return true;
 // }
+#include <cuda.h>
+#include <cuda_runtime_api.h>
+
 void checkGpuMem()
 {
     size_t avail;

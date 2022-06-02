@@ -17,7 +17,7 @@ class MyTSDF;
 class gloabMap
 {
 public:
-  SkipList<uint64_t, struct box32 *> *pskipList;
+  SkipList<uint64_t, struct Voxel32 *> *pskipList;
 
   gloabMap();
   void addcube(std::shared_ptr<MyTSDF> &spTsdf);

@@ -20,9 +20,9 @@
 // private:
 //   /* data */
 // public:
-//   vector<box32 *> box32s;
-//   // std::vector<box32 *> pbox32s(4194304, {NULL});
-//   vector<box32 *> *pbox32s;
+//   vector<Voxel32 *> box32s;
+//   // std::vector<Voxel32 *> pbox32s(4194304, {NULL});
+//   vector<Voxel32 *> *pbox32s;
 //   unordered_set<uint32_t> pre_box;
 //   int alsize = 1024;
 //   int nowsize = 0;
@@ -33,12 +33,12 @@
 //   MyTSDF()
 //   {
 //     box32s.resize(alsize);
-//     pbox32s = new vector<box32 *>(0xffff * 64, NULL);
+//     pbox32s = new vector<Voxel32 *>(0xffff * 64, NULL);
 //     _weight = new float[alsize * 32 * 32 * 32];
 //     _rgb = new uint8_t[alsize * 32 * 32 * 32 * 3];
 //     for (int i = 0; i < alsize; i++)
 //     {
-//       box32s[i] = new struct box32();
+//       box32s[i] = new struct Voxel32();
 //     }
 //   }
 //   void integrate(float *cam_K, float *cam2base, uint8_t *rgb_im, float *depth_im,
@@ -79,7 +79,7 @@
 //           // box32s.resize(alsize); //resize()既修改capacity大小，也修改size大小。
 //           for (int i = 0; i < alsize; i++)
 //           {
-//             struct box32 *pbox32s_l = new struct box32();
+//             struct Voxel32 *pbox32s_l = new struct Voxel32();
 //             // pbox32s_l->weight = new float[32 * 32 * 32];
 //             assert(pbox32s_l->pVoxel);
 //             box32s.push_back(pbox32s_l);

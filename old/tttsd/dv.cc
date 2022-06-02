@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
     //     // cloud.addCloud(jix, cv::viz::Color::red(), pose);          //,cv::Affine3f(pose) , pose
     //     cloud.addCloud(jix[0], jixrgb[0]); //,cv::Affine3f(pose) , pose, cv::viz::Color::blue()
     //     cloud.addCloud(jix[1], jixrgb[1]); //,cv::Affine3f(pose) , pose, cv::viz::Color::blue()
-    // cout << sizeof(box32) << endl;
+    // cout << sizeof(Voxel32) << endl;
     // if (currtsdf->box32s.size() > 400)
     if (now_id % 3 == 5)
     {

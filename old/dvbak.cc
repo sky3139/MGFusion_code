@@ -12,12 +12,12 @@
 using namespace cv;
 using namespace std;
 
-struct box32
+struct Voxel32
 {
   float *tsdfval; //32*32*32
   uint8_t rgb[3];
   uint8_t weight;
-  box32()
+  Voxel32()
   {
     tsdfval = NULL;
     weight = 1;
@@ -29,8 +29,8 @@ class MyTSDF
 private:
   /* data */
 public:
-  vector<box32 *> box32s;
-  vector<box32 *> pbox32s;
+  vector<Voxel32 *> box32s;
+  vector<Voxel32 *> pbox32s;
   vector<uint32_t> pre_box;
 
   float *_pval;
@@ -41,7 +41,7 @@ public:
     _pval = new float[1024 * 32 * 32 * 32];
     for (int i = 0; i < 1024; i++)
     {
-      box32s[i] = new struct box32();
+      box32s[i] = new struct Voxel32();
       box32s[i]->tsdfval = &_pval[32 * 32 * 32 * i];
     }
   }

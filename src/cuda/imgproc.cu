@@ -55,28 +55,16 @@ namespace device
     };
 
     __global__ void
-    scaleDepthCloud(const PtrStepSz<unsigned short> depth, PtrStep<xyzPoints> scaled, float *campose, const Intr intr)
+    scaleDepthCloud(const PtrStepSz<unsigned short> depth, PtrStep<PosType> scaled, float *campose, const Intr intr)
     {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
-
         if (x >= depth.cols || y >= depth.rows)
             return;
         int Dp = depth.ptr(y)[x];
-
-        xyzPoints xp;
-        xp.z = (float)Dp * 0.001f;
-        xp.x = xp.z * (x - 320) / 500;
-        xp.y = xp.z * (y - 240) / 500;
-
-        // float xl = (x - intr.cx) / intr.fx;
-        // float yl = (y - intr.cy) / intr.fy;
-        // float lambda = sqrtf(xl * xl + yl * yl + 1);
-
-        xyzPoints gp;
-
+        float3 xp = intr.reprojector(x, y, Dp * 0.001f);
+        PosType gp;
         __shared__ float cam[16];
-
         if (0 == threadIdx.x && threadIdx.y == 0)
         {
             for (int i = 0; i < 16; i++)
@@ -85,30 +73,20 @@ namespace device
             }
         }
         __syncthreads();
-
         gp.x = cam[0 * 4 + 0] * xp.x + cam[0 * 4 + 1] * xp.y + cam[0 * 4 + 2] * xp.z + cam[0 * 4 + 3];
         gp.y = cam[1 * 4 + 0] * xp.x + cam[1 * 4 + 1] * xp.y + cam[1 * 4 + 2] * xp.z + cam[1 * 4 + 3];
         gp.z = cam[2 * 4 + 0] * xp.x + cam[2 * 4 + 1] * xp.y + cam[2 * 4 + 2] * xp.z + cam[2 * 4 + 3];
         scaled.ptr(y)[x] = gp; // Dp * 0.0002f; //  / 1000.f; //meters
-
-        // u32_4byte vecs;
-        // int8_t vx= std::floor( gp.x / (float)(VOXELSIZE)); //向下取整
-        // int8_t vy= std::floor( gp.y  / (float)(VOXELSIZE)); //向下取整
-        // int8_t vz= std::floor( gp.z/ (float)(VOXELSIZE)); //向下取整
-
-        // vecs.x =(int8_t)vx;
-        // vecs.y =(int8_t)vy;
-        // vecs.z =(int8_t)vz;
     }
 
     __global__ void
-    mappoints_cube2tsdf_batch(struct box32 *dev_pbox, struct ex_buf_ *point_buf)
+    mappoints_cube2tsdf_batch(struct Voxel32 *dev_pbox, struct ex_buf_ *point_buf)
     {
         int blockId = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z; // z blockId
         int pt_grid_x = threadIdx.x;
         int pt_grid_y = threadIdx.y;
         u32_4byte index = dev_pbox[blockId].index;
-        u64_4byte center = point_buf[blockId].center;
+        u64B4 center = point_buf[blockId].center;
 
         for (int pt_grid_z = 0; pt_grid_z < 32; pt_grid_z++)
         {
@@ -122,9 +100,9 @@ namespace device
 
                 union UPoints &up = point_buf[blockId].up[val];
 
-                up.xyz[0] = (index.x + 1 * center.x) * VOXELSIZE + pt_grid_x * VOXELSIZE_PCUBE;
-                up.xyz[1] = (index.y + 1 * center.y) * VOXELSIZE + pt_grid_y * VOXELSIZE_PCUBE;
-                up.xyz[2] = (index.z + 1 * center.z) * VOXELSIZE + pt_grid_z * VOXELSIZE_PCUBE;
+                up.pos.x = (index.x + 1 * center.x) * VOXELSIZE + pt_grid_x * VOXELSIZE_PCUBE;
+                up.pos.y = (index.y + 1 * center.y) * VOXELSIZE + pt_grid_y * VOXELSIZE_PCUBE;
+                up.pos.z = (index.z + 1 * center.z) * VOXELSIZE + pt_grid_z * VOXELSIZE_PCUBE;
 
                 up.rgb[0] = voxel.rgb[0];
                 up.rgb[1] = voxel.rgb[1];
@@ -134,13 +112,13 @@ namespace device
     }
 
     __global__ void
-    mappoints_cube2tsdf(struct box32 *dev_pbox, struct ex_buf_ *point_buf)
+    mappoints_cube2tsdf(struct Voxel32 *dev_pbox, struct ex_buf_ *point_buf)
     {
         int pt_grid_z = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z; // z blockId
         int pt_grid_x = threadIdx.x;
         int pt_grid_y = threadIdx.y;
         u32_4byte index = dev_pbox->index;
-        u64_4byte center = point_buf->center;
+        u64B4 center = point_buf->center;
         int volume_idx = pt_grid_z * CUBEVOXELSIZE * CUBEVOXELSIZE + pt_grid_y * CUBEVOXELSIZE + pt_grid_x;
         union voxel &voxel = dev_pbox->pVoxel[volume_idx];
         // if (voxel.weight < 0.001f)
@@ -168,7 +146,7 @@ namespace device
         }
     }
     __global__ void
-    cloud2grids(struct box32 *pboxmap, UPoints *ps, size_t len_point)
+    cloud2grids(struct Voxel32 *pboxmap, UPoints *ps, size_t len_point)
     {
         int pt_grid_z = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
         union UPoints &up = ps[pt_grid_z];
@@ -193,7 +171,7 @@ namespace device
         pboxmap->pVoxel[index].rgb[2] = up.rgb[2];
     }
     __global__ void
-    cloud2grids_init(struct box32 *pboxmap)
+    cloud2grids_init(struct Voxel32 *pboxmap)
     {
         int pt_grid_z = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
         pboxmap->index.u32 = 0;
@@ -201,8 +179,8 @@ namespace device
         pboxmap->pVoxel[pt_grid_z].weight = 0;
     }
     __global__ void
-    scaleDepth(const PtrStepSz<unsigned short> depth, PtrStep<xyzPoints> scaled, PtrStep<xyzPoints> gcloud,
-               PtrStep<u32_4byte> zin, float *campose, const Intr intr)
+    scaleDepth(const PtrStepSz<unsigned short> depth, PtrStep<PosType> scaled, PtrStep<PosType> gcloud,
+               PtrStep<u32_4byte> zin, float *campose, const Intr intr, u64B4 center)
     {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -211,7 +189,7 @@ namespace device
             return;
         int Dp = depth.ptr(y)[x];
 
-        xyzPoints xp;
+        PosType xp; //=intr.reprojector(x,y,Dp*0.001f);
         xp.z = Dp * 0.0002f;
         xp.x = xp.z * (x - intr.cx) / intr.fx;
         xp.y = xp.z * (y - intr.cy) / intr.fy;
@@ -221,7 +199,7 @@ namespace device
         // float lambda = sqrtf(xl * xl + yl * yl + 1);
         scaled.ptr(y)[x] = xp; // Dp * 0.0002f; //  / 1000.f; //meters
 
-        xyzPoints gp;
+        PosType gp;
 
         __shared__ float cam[16];
 
@@ -241,20 +219,20 @@ namespace device
         gcloud.ptr(y)[x] = gp; // Dp * 0.0002f; //  / 1000.f; //meters
 
         u32_4byte vecs;
-        int8_t vx = std::floor (gp.x / (float)(VOXELSIZE)); //向下取整 __float2int_rn __float2int_rd rn是求最近的偶数，rz是逼近零，ru是向上舍入[到正无穷]，rd是向下舍入[到负无穷]。  std::floor
-        int8_t vy = std::floor(gp.y / (float)(VOXELSIZE)); //向下取整
-        int8_t vz = std::floor(gp.z / (float)(VOXELSIZE)); //向下取整
+        int16_t vx = __float2int_rd(gp.x / (float)(VOXELSIZE)); //向下取整 __float2int_rn __float2int_rd rn是求最近的偶数，rz是逼近零，ru是向上舍入[到正无穷]，rd是向下舍入[到负无穷]。  std::floor
+        int16_t vy = __float2int_rd(gp.y / (float)(VOXELSIZE)); //向下取整
+        int16_t vz = __float2int_rd(gp.z / (float)(VOXELSIZE)); //向下取整
 
-        vecs.x = (int8_t)vx;
-        vecs.y = (int8_t)vy;
-        vecs.z = (int8_t)vz;
+        vecs.x = (int8_t)(vx - center.x);
+        vecs.y = (int8_t)(vy - center.y);
+        vecs.z = (int8_t)(vz - center.z);
 
         zin.ptr(y)[x] = vecs;
     }
 
     //写论文测试用
     __global__ void
-    extract_kernel_test(Point3dim *output_base, struct box32 *dev_pbox, exmatcloud_para *para)
+    extract_kernel_test(Point3dim *output_base, struct Voxel32 *dev_pbox, exmatcloud_para *para)
     {
         // printf("d:%d ,%f\n", *pos_index, device::devData);
         // device::devData += 2;
@@ -265,7 +243,7 @@ namespace device
         if ((dev_pbox + blockId) == NULL)
             return;
 
-        struct box32 &vdev_pbox = dev_pbox[blockId];
+        struct Voxel32 &vdev_pbox = dev_pbox[blockId];
         int pt_grid_x = threadIdx.x;
         int pt_grid_y = threadIdx.y;
         u32_4byte index = vdev_pbox.index;
@@ -301,13 +279,13 @@ namespace device
         }
     }
     __global__ void
-    extract_activate_kernel(Point3dim *output_base, struct box32 *dev_pbox, exmatcloud_para *para)
+    extract_activate_kernel(Point3dim *output_base, struct Voxel32 *dev_pbox, exmatcloud_para *para)
     {
         int blockId = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
         if ((dev_pbox + blockId) == NULL)
             return;
 
-        struct box32 &vdev_pbox = dev_pbox[blockId];
+        struct Voxel32 &vdev_pbox = dev_pbox[blockId];
 
         u32_4byte index = vdev_pbox.index;
         if (index.cnt != 0)
@@ -337,18 +315,18 @@ namespace device
     }
 
     // __global__ void
-    // kernel_change_type(struct box32 *dev_pbox, uint8_t val)
+    // kernel_change_type(struct Voxel32 *dev_pbox, uint8_t val)
     // {
     //     int blockId = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
     //     if ((dev_pbox + blockId) == NULL)
     //         return;
-    //     struct box32 &vdev_pbox = dev_pbox[blockId];
+    //     struct Voxel32 &vdev_pbox = dev_pbox[blockId];
     //     // int pt_grid_x = threadIdx.x;
     //     // int pt_grid_y = threadIdx.y;
     //     vdev_pbox.index.type = val;
     // }
     __global__ void
-    extract_kernel(ex_buf *output_base, struct box32 *dev_pbox, exmatcloud_para *para)
+    extract_kernel(ex_buf *output_base, struct Voxel32 *dev_pbox, exmatcloud_para *para)
     {
         // printf("d:%d ,%f\n", *pos_index, device::devData);
         // device::devData += 2;
@@ -360,7 +338,7 @@ namespace device
         if ((dev_pbox + blockId) == NULL)
             return;
 
-        struct box32 &vdev_pbox = dev_pbox[blockId];
+        struct Voxel32 &vdev_pbox = dev_pbox[blockId];
         int pt_grid_x = threadIdx.x;
         int pt_grid_y = threadIdx.y;
         u32_4byte index = vdev_pbox.index;
@@ -373,8 +351,8 @@ namespace device
             if (std::abs(voxel.tsdf) < 0.2f && voxel.weight > 0.50f)
             {
                 unsigned int val = atomicInc(&para->dev_points_num, 0xffffff);
-                struct posevoxel &pos = output_base->pose[val];
-                struct colorvoxel &_color = output_base->color[val];
+                float3 &pos = output_base->pose[val];
+                uchar3 &_color = output_base->color[val];
 
                 pos.x = (index.x + para->center.x) * 0.32f + pt_grid_x * 0.01f;
                 pos.y = (index.y + para->center.y) * 0.32f + pt_grid_y * 0.01f;
@@ -382,25 +360,25 @@ namespace device
 
                 if (vdev_pbox.index.cnt == 0)
                 {
-                    _color.rgb[0] = voxel.rgb[0];
-                    _color.rgb[1] = voxel.rgb[1];
-                    _color.rgb[2] = voxel.rgb[2];
+                    _color.x = voxel.rgb[0];
+                    _color.y = voxel.rgb[1];
+                    _color.z= voxel.rgb[2];
                 }
                 // pos.rgb[0] = 255;//voxel.rgb[0];
                 // pos.rgb[1] = 255;//index.x;//voxel.rgb[1];
                 // pos.rgb[2] = 255;//index.x;//voxel.rgb[2];
                 //    "     }
-                else if (vdev_pbox.index.cnt > 5)
+                else if (vdev_pbox.index.cnt > 7)
                 {
-                    _color.rgb[0] = 255; // voxel.rgb[0];
-                    _color.rgb[1] = 0;   // index.x;//voxel.rgb[1];
-                    _color.rgb[2] = 0;   // index.x;//voxel.rgb[2];
+                    _color.x = 255; // voxel.rgb[0];
+                    _color.y = 0;   // index.x;//voxel.rgb[1];
+                    _color.z = 0;   // index.x;//voxel.rgb[2];
                 }
                 else // if (index.type == 2)
                 {
-                    _color.rgb[0] = 0;   // voxel.rgb[0];
-                    _color.rgb[1] = 255; // index.x;//voxel.rgb[1];
-                    _color.rgb[2] = 0;   // index.x;//voxel.rgb[2];
+                    _color.x= 0;   // voxel.rgb[0];
+                    _color.y= 255; // index.x;//voxel.rgb[1];
+                    _color.z = 0;   // index.x;//voxel.rgb[2];
                 }
             }
         }
@@ -414,7 +392,7 @@ namespace device
     }
 
     // __global__ void
-    // scaleDepth(const PtrStepSz<unsigned short> depth, PtrStep<xyzPoints> scaled, const Intr intr)
+    // scaleDepth(const PtrStepSz<unsigned short> depth, PtrStep<PosType> scaled, const Intr intr)
     // {
     //     int x = threadIdx.x + blockIdx.x * blockDim.x;
     //     int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -423,7 +401,7 @@ namespace device
     //         return;
     //     int Dp = depth.ptr(y)[x];
 
-    //     xyzPoints xp;
+    //     PosType xp;
     //     xp.z=Dp * 0.0002f;
     //     xp.x= xp.z*(x - intr.cx) / intr.fx;
     //     xp.y=xp.z*(y - intr.cy) / intr.fy;
@@ -437,25 +415,21 @@ namespace device
     __global__ void Integrate32(float *cam_K,
                                 int im_height, int im_width,
                                 float voxel_size, float trunc_margin,
-                                struct box32 **dev_boxptr, struct kernelPara *gpu_kpara,
-                                const PtrStepSz<xyzPoints> depthScaled)
+                                struct Voxel32 **dev_boxptr, struct kernelPara *gpu_kpara,
+                                const PtrStepSz<PosType> depthScaled)
     {
-        // int threadId = blockIdx.x * blockDim.x * blockDim.y + threadIdx.y * blockDim.x + threadIdx.x;
         int pt_grid_z = threadIdx.x; // threadId 32
         int pt_grid_y = threadIdx.y; // threadId 32
-        // int pt_grid_num = gridDim.x; //num
         int blockId = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
-        __shared__ float cam2base[16];
-        // printf("%d %d %d\n", pt_grid_y, pt_grid_z, blockId);
+        __shared__ float cam2base[12];
         if (0 == pt_grid_z && pt_grid_y == 0)
         {
-            for (int i = 0; i < 16; i++)
+            for (int i = 0; i < 12; i++)
                 cam2base[i] = gpu_kpara->cam2base[i];
         }
-        __syncthreads();
-
-        struct box32 *pbox = dev_boxptr[blockId];
+        struct Voxel32 *pbox = dev_boxptr[blockId];
         union u32_4byte u32 = pbox->index;
+        __syncthreads();
         for (int pt_grid_x = 0; pt_grid_x < CUBEVOXELSIZE; pt_grid_x++)
         {
             // 计算小体素的世界坐标
@@ -463,7 +437,7 @@ namespace device
             float pt_base_y = (u32.y + gpu_kpara->center.y) * VOXELSIZE + pt_grid_y * voxel_size;
             float pt_base_z = (u32.z + gpu_kpara->center.z) * VOXELSIZE + pt_grid_z * voxel_size;
 
-            //     //计算体素在相机坐标系的坐标
+            //计算体素在相机坐标系的坐标
             float tmp_pt[3] = {0};
             tmp_pt[0] = pt_base_x - cam2base[0 * 4 + 3];
             tmp_pt[1] = pt_base_y - cam2base[1 * 4 + 3];
@@ -482,7 +456,7 @@ namespace device
 
             // uint16_t img_depu = gpu_kpara->dev_depthdata[pt_pix_y * im_width + pt_pix_x];
             // union points *pt = (union points *)&point[pt_pix_y * im_width + pt_pix_x];
-            xyzPoints img_dep = depthScaled.ptr(pt_pix_y)[pt_pix_x]; // meters
+            PosType img_dep = depthScaled.ptr(pt_pix_y)[pt_pix_x]; // meters
 
             // float img_dep = img_depu * 0.001f; //pt->xyz;//
             if (img_dep.z <= 0 || img_dep.z > 6)

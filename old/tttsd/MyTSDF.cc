@@ -14,7 +14,7 @@ MyTSDF::MyTSDF(int a, Vec4s _center = Vec4s(0, 0, 0, 1))
 {
   alsize = 0;
   id = a;
-  pbox32s = new vector<box32 *>(ADDRESS_NUMBER, NULL);
+  pbox32s = new vector<Voxel32 *>(ADDRESS_NUMBER, NULL);
   m_center = _center;
   m_centerf = _center * 0.32f;
   //***********************db
@@ -36,7 +36,7 @@ void MyTSDF::geicurrbox(int i)
 {
   if ((*pbox32s)[i] == NULL)
   {
-    struct box32 *pbox32s_l = new struct box32();
+    struct Voxel32 *pbox32s_l = new struct Voxel32();
     pbox32s_l->index = i;
     box32s.push_back(pbox32s_l);
     (*pbox32s)[i] = pbox32s_l;
@@ -61,7 +61,7 @@ void MyTSDF::geicurrbox(int i)
 //       // box32s.resize(alsize); //resize()既修改capacity大小，也修改size大小。
 //       for (int i = 0; i < alsize; i++)
 //       {
-//         struct box32 *pbox32s_l = new struct box32();
+//         struct Voxel32 *pbox32s_l = new struct Voxel32();
 //         // pbox32s_l->weight = new float[32 * 32 * 32];
 //         assert(pbox32s_l->pVoxel);
 //         box32s.push_back(pbox32s_l);
@@ -120,7 +120,7 @@ void MyTSDF::integrate(float *cam_K, float *cam2base, uint8_t *rgb_im, float *de
     //     // box32s.resize(alsize); //resize()既修改capacity大小，也修改size大小。
     //     for (int i = 0; i < alsize; i++)
     //     {
-    //       struct box32 *pbox32s_l = new struct box32();
+    //       struct Voxel32 *pbox32s_l = new struct Voxel32();
     //       // pbox32s_l->weight = new float[32 * 32 * 32];
     //       assert(pbox32s_l->pVoxel);
     //       box32s.push_back(pbox32s_l);
@@ -289,12 +289,12 @@ bool MyTSDF::word2tsdfax(Vec4f &wpoint, Vec4s &tsdfval, gloabMap &gm)
   wp[2] = ((int16_t)u32_4.byte4[2] + (int16_t)this->m_center[2]); // * 0.32f; // + spTsdf->m_centerf[2];
   //   Vec4f wps = wp - mytsdf->m_centerf;
   // Vec4s d4s = wp * 3.125f; //相对体素坐标
-  u64_4byte u64;
+  u64B4 u64;
   u64.x = wp[0];
   u64.y = wp[1];
   u64.z = wp[2];
 
-  box32 *pb;
+  Voxel32 *pb;
   bool ret = gm.pskipList->search_element(u64.u64, pb);
   if (ret == true)
   {
@@ -413,7 +413,7 @@ void MyTSDF::over(std::shared_ptr<MyTSDF> &mytsdf, cv::Mat &pos)
   // }
 
   // // cout << "over    " << nowsize << endl;
-  // vector<box32 *> p;
+  // vector<Voxel32 *> p;
   // pbox32s->swap(p);
   // cout << "ok" << endl;
   // pbox32s->clear(); //清空元素，但不回收空间

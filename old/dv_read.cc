@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
   for (size_t i = 0; i < pos.rows; i++)
   {
     Vec4s tsdfwordpose = pos.at<Vec4s>(i, 0);
-    box32 *pbox = new struct box32;
+    Voxel32 *pbox = new struct Voxel32;
     pbox->read("box.bin", i);
     u32_4byte u32;
     u32.byte4[0] = tsdfwordpose[0];
@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
   //   //     cloud.addCloud(jix[0], jixrgb[0]); //,cv::Affine3f(pose) , pose, cv::viz::Color::blue()
   //   //     cloud.addCloud(jix[1], jixrgb[1]); //,cv::Affine3f(pose) , pose, cv::viz::Color::blue()
   //   window.spinOnce(1, false);
-  //   // cout << sizeof(box32) << endl;
+  //   // cout << sizeof(Voxel32) << endl;
   //   if (currtsdf->nowsize > 400)
   //   {
   //     old_tsdfs.push_back(currtsdf);

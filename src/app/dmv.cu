@@ -271,7 +271,7 @@ void renderImage(const Intr &intr, const DeviceArray2D<unsigned short> &depth,
     // cudaSafeCall ( cudaGetLastError () );
 
     // p_int.download(_32buf,sizeof(u32_4byte)*640);
-    // ck(cudaMallocHost((void **)&host_points, sizeof( xyzPoints)*480*640));
+    // ck(cudaMallocHost((void **)&host_points, sizeof( PosType)*480*640));
     image.download(_32buf, 4 * 640);
     cv::Mat asdsa(480, 640, CV_8UC4, _32buf);
     cv::imshow("a", asdsa);
@@ -298,7 +298,6 @@ struct TSDF
         mp_v = v;
         trunc_margin = voxel_size * 5;
     }
-    struct box32 srcbox;
     dataset *parser;
     // dataset_tum *parser;
 
@@ -312,22 +311,21 @@ struct TSDF
         cudaMemcpy(gpu_cam_K, cam_K_vec.data, 3 * 3 * sizeof(float), cudaMemcpyHostToDevice);
         checkCUDA(cudaGetLastError());
 
-        struct box32 **host_boxptr = new struct box32 *[ACTIVATE_VOXNUM];
+        struct Voxel32 **host_boxptr = new struct Voxel32 *[ACTIVATE_VOXNUM];
         // int **p = new int* [5];
-        struct box32 **dev_boxptr;
-        cudaMalloc((void **)&dev_boxptr, sizeof(struct box32 *) * ACTIVATE_VOXNUM);
-        srcbox.init();
+        struct Voxel32 **dev_boxptr;
+        cudaMalloc((void **)&dev_boxptr, sizeof(struct Voxel32 *) * ACTIVATE_VOXNUM);
         cv::Mat points, color;
 
         struct kernelPara *gpu_kpara;
         cudaMalloc((void **)&gpu_kpara, sizeof(struct kernelPara));
         Timer tm;
-        DeviceArray2D<xyzPoints> depthScaled(480, 640);
-        DeviceArray2D<xyzPoints> gocloud(480, 640);
+        DeviceArray2D<PosType> depthScaled(480, 640);
+        DeviceArray2D<PosType> gocloud(480, 640);
 
-        xyzPoints *host_points; //=new xyzPoints;
-        ck(cudaMallocHost((void **)&host_points, sizeof(xyzPoints) * 480 * 640));
-        // std::cout<<sizeof( xyzPoints)<<std::endl;
+        PosType *host_points; //=new PosType;
+        ck(cudaMallocHost((void **)&host_points, sizeof(PosType) * 480 * 640));
+        // std::cout<<sizeof( PosType)<<std::endl;
 
         //
         DeviceArray2D<unsigned short> depth_device_img(480, 640);
@@ -364,19 +362,19 @@ struct TSDF
         {
             cv::Mat pt, color;
             cv::Mat expoints, excolor;
-            u64_4byte center;
+            u64B4 center;
             center.u64 = 0;                                                                          // save_tsdf_mode_grids_3_1240 1 grids_1155 save_tsdf_mode_grids_1_965 save_tsdf_mode_grids_0_1508
             std::fstream file(string(fs["matpose"]) + "grids.bin", std::ios::in | std::ios::binary); // | ios::app
-            struct box32 pboxs;
-            SkipList<uint32_t, struct box32 *> *pskipList = new SkipList<uint32_t, struct box32 *>(6);
-            std::vector<struct box32 *> cputsdf_cube;
+            struct Voxel32 pboxs;
+            SkipList<uint32_t, struct Voxel32 *> *pskipList = new SkipList<uint32_t, struct Voxel32 *>(6);
+            std::vector<struct Voxel32 *> cputsdf_cube;
             mappoints mps;
-            struct box32 *gpu_box;
+            struct Voxel32 *gpu_box;
             size_t NUM = 0;
             file.read(reinterpret_cast<char *>(&NUM), sizeof(size_t));
-            cudaMalloc((void **)&gpu_box, sizeof(struct box32) * NUM); //申请GPU显存
-            struct box32 *_pboxs = new struct box32[NUM];
-            file.read(reinterpret_cast<char *>(_pboxs), sizeof(struct box32) * NUM);
+            cudaMalloc((void **)&gpu_box, sizeof(struct Voxel32) * NUM); //申请GPU显存
+            struct Voxel32 *_pboxs = new struct Voxel32[NUM];
+            file.read(reinterpret_cast<char *>(_pboxs), sizeof(struct Voxel32) * NUM);
             for (int i = 0; i < NUM; i++)
             {
 
@@ -385,7 +383,7 @@ struct TSDF
                 cputsdf_cube.push_back(&_pboxs[i]);
 
                 //
-                // ck(cudaMemcpy((void *)&pboxs, (void *)(mm.gpu_pbox_use[i]), sizeof(struct box32), cudaMemcpyDeviceToHost));
+                // ck(cudaMemcpy((void *)&pboxs, (void *)(mm.gpu_pbox_use[i]), sizeof(struct Voxel32), cudaMemcpyDeviceToHost));
             }
 
             // cpu tsdf cube 转GPU tsdf CUBE
@@ -393,7 +391,7 @@ struct TSDF
                 tm.Start();
                 for (int i = 0; i < NUM; i++)
                 {
-                    ck(cudaMemcpy((void *)&gpu_box[i], (void *)(cputsdf_cube[i]), sizeof(struct box32), cudaMemcpyHostToDevice));
+                    ck(cudaMemcpy((void *)&gpu_box[i], (void *)(cputsdf_cube[i]), sizeof(struct Voxel32), cudaMemcpyHostToDevice));
                 }
                 tm.PrintSeconds("cpu tsdf2GPU t 4:");
             }
@@ -409,11 +407,11 @@ struct TSDF
                 {
                     if (i % 2 == 0)
                     {
-                        ck(cudaMemcpyAsync((void *)(cputsdf_cube[i]), (void *)&gpu_box[i], sizeof(struct box32), cudaMemcpyDeviceToHost, stream));
+                        ck(cudaMemcpyAsync((void *)(cputsdf_cube[i]), (void *)&gpu_box[i], sizeof(struct Voxel32), cudaMemcpyDeviceToHost, stream));
                     }
                     else
                     {
-                        ck(cudaMemcpyAsync((void *)(cputsdf_cube[i]), (void *)&gpu_box[i], sizeof(struct box32), cudaMemcpyDeviceToHost, stream2));
+                        ck(cudaMemcpyAsync((void *)(cputsdf_cube[i]), (void *)&gpu_box[i], sizeof(struct Voxel32), cudaMemcpyDeviceToHost, stream2));
                     }
                 }
                 ck(cudaStreamSynchronize(stream));
@@ -437,7 +435,7 @@ struct TSDF
             file.close();
             // assert(0);
 
-            struct box32 *cpu_box_; //=new box32;
+            struct Voxel32 *cpu_box_; //=new Voxel32;
             //跳跃链表点云转CPU TSDF CUBE
             {
                 tm.Start();
@@ -513,7 +511,7 @@ struct TSDF
                 // renderImage(intr, depth_device_img, points_pyr, normals_pyr, imgcuda, host_32buf);
             }
 
-            // depthScaled.download(host_points,sizeof(xyzPoints)*640);
+            // depthScaled.download(host_points,sizeof(PosType)*640);
             //当前深度图 点云
 
             gocloud.download(host_points, 12 * 640);
@@ -564,7 +562,7 @@ struct TSDF
             tm.Start();
 
             //将需要处理的box地址拷贝到GPU
-            cudaMemcpy((void *)dev_boxptr, (void *)host_boxptr, (i) * sizeof(struct box32 *), cudaMemcpyHostToDevice);
+            cudaMemcpy((void *)dev_boxptr, (void *)host_boxptr, (i) * sizeof(struct Voxel32 *), cudaMemcpyHostToDevice);
             checkCUDA(cudaGetLastError());
             // std::cout << "frame_idx: " << frame_idx << " cnt:i=" << i << " " <<  << std::endl;
             // assert(num != 0);
@@ -637,11 +635,11 @@ struct TSDF
             // {
 
             //     std::fstream file("temp", std::ios::out | std::ios::binary); // | ios::app
-            //     struct box32 pboxs;
+            //     struct Voxel32 pboxs;
             //     for (int i = 0; i < 500; i++)
             //     {
-            //         ck(cudaMemcpy((void *)&pboxs, (void *)(mm.gpu_pbox_use[i]), sizeof(struct box32), cudaMemcpyDeviceToHost));
-            //         file.write(reinterpret_cast<char *>(&pboxs), sizeof(struct box32));
+            //         ck(cudaMemcpy((void *)&pboxs, (void *)(mm.gpu_pbox_use[i]), sizeof(struct Voxel32), cudaMemcpyDeviceToHost));
+            //         file.write(reinterpret_cast<char *>(&pboxs), sizeof(struct Voxel32));
             //     }
 
             //     file.close();

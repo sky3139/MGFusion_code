@@ -14,7 +14,7 @@ FIND_PACKAGE(OpenCV REQUIRED)
 message(<<--OpenCV_VERSION:${OpenCV_VERSION}-->>)
 
 SET(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -std=c++14)
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_61,code=sm_61;--expt-relaxed-constexpr)#;-G;-g$
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_61,code=sm_61;--expt-relaxed-constexpr;-w)#;-G;-g$
 
 file(GLOB CURRENT_SOURCES  src/*.*
 src/cuda/*.*
@@ -30,7 +30,7 @@ include_directories(${OpenCV_INCLUDE_DIRS}
 ./src
 )
 file(GLOB TOOL_SRCS  src/tool/**)
-add_library(tool  ${TOOL_SRCS})
+cuda_add_library(tool  ${TOOL_SRCS})
 target_link_libraries(tool ${OpenCV_LIBS})
 
 CUDA_ADD_EXECUTABLE(mvgrid src/app/mvgrid.cu ${CURRENT_HEADERS} ${CURRENT_SOURCES})

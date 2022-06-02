@@ -17,7 +17,7 @@ using namespace std;
 
 gloabMap::gloabMap()
 {
-  pskipList = new SkipList<uint64_t, struct box32 *>(6);
+  pskipList = new SkipList<uint64_t, struct Voxel32 *>(6);
 };
 void gloabMap::addcube(std::shared_ptr<MyTSDF> &spTsdf)
 {
@@ -25,7 +25,7 @@ void gloabMap::addcube(std::shared_ptr<MyTSDF> &spTsdf)
   for (int i = 0; i < spTsdf->box32s.size(); i++) // for (auto &it : box32s)
   {
     u32_4byte u324;
-    // box32 *p=(spTsdf->box32s)[i];
+    // Voxel32 *p=(spTsdf->box32s)[i];
     u324.u32 = spTsdf->box32s[i]->index; //原cube 序号
 
     // printf("%x,%x,%x,%x\n", u324.u32, u324.byte4[0], u324.byte4[1], u324.byte4[2]);
@@ -35,7 +35,7 @@ void gloabMap::addcube(std::shared_ptr<MyTSDF> &spTsdf)
     wp[2] = ((int16_t)u324.byte4[2] + (int16_t)spTsdf->m_center[2]); // * 0.32f; // + spTsdf->m_centerf[2];
     //   Vec4f wps = wp - mytsdf->m_centerf;
     // Vec4s d4s = wp * 3.125f; //相对体素坐标
-    u64_4byte u64;
+    u64B4 u64;
     u64.x = wp[0];
     u64.y = wp[1];
     u64.z = wp[2];
@@ -44,7 +44,7 @@ void gloabMap::addcube(std::shared_ptr<MyTSDF> &spTsdf)
       int8_t ret = pskipList->insert_element(u64.u64, spTsdf->box32s[i]);
     //   if (ret == 1)
     //   {
-    //     struct box32 *pbox;
+    //     struct Voxel32 *pbox;
     //     ret = pskipList->search_element(u64.u64, pbox);
     //     if (ret == true)
     //     {
@@ -66,7 +66,7 @@ void gloabMap::addcube(std::shared_ptr<MyTSDF> &spTsdf)
     // }
   }
 }
-// void addresstotsdfworld(union u64_4byte &u32_4, cv::Vec3f &tsdfwordpose)
+// void addresstotsdfworld(union u64B4 &u32_4, cv::Vec3f &tsdfwordpose)
 // {
 //   // static float tsdf_base_xyz[3] = {0, 0, 0};
 //   tsdfwordpose[0] = u32_4.x * 0.32f;
@@ -83,11 +83,11 @@ void gloabMap::Voxel2PointCloud(cv::Mat &color, cv::Mat &cloud)
   int nodesize = 0;
   for (int i = 0; i <= pskipList->_skip_list_level; i++)
   {
-    Node<uint64_t, struct box32 *> *node = pskipList->_header->forward[i];
+    Node<uint64_t, struct Voxel32 *> *node = pskipList->_header->forward[i];
     // std::cout << "Level " << i << ": ";
     while (node != NULL)
     {
-      u64_4byte u64;
+      u64B4 u64;
       u64.u64 = node->get_key();
       Vec3f vec4;
       vec4[0] = u64.x * 0.32;

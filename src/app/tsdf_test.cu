@@ -26,7 +26,7 @@
 
 using namespace std;
 // cv::Mat getCload(cv::Mat &outdepth, cv::Mat &point_tsdf, std::vector<uint32_t> &cubexs,
-//                  cv::Mat_<float> &cam_pose,xyzPoints *host_points, struct kernelPara &para)
+//                  cv::Mat_<float> &cam_pose,PosType *host_points, struct kernelPara &para)
 // {
 //     static bool b = false;
 //     cv::Mat wdpoint ;
@@ -374,7 +374,7 @@ void renderImage(const Intr &intr, const DeviceArray2D<unsigned short> &depth,
     // cudaSafeCall ( cudaGetLastError () );
 
     // p_int.download(_32buf,sizeof(u32_4byte)*640);
-    // ck(cudaMallocHost((void **)&host_points, sizeof( xyzPoints)*480*640));
+    // ck(cudaMallocHost((void **)&host_points, sizeof( PosType)*480*640));
     image.download(_32buf, 4 * 640);
     cv::Mat asdsa(480, 640, CV_8UC4, _32buf);
     cv::imshow("a", asdsa);
@@ -401,7 +401,6 @@ struct TSDF
         mp_v = v;
         trunc_margin = voxel_size * 5;
     }
-    struct box32 srcbox;
     dataset *parser;
     // dataset_tum *parser;
 
@@ -415,22 +414,21 @@ struct TSDF
         cudaMemcpy(gpu_cam_K, cam_K_vec.data, 3 * 3 * sizeof(float), cudaMemcpyHostToDevice);
         checkCUDA(cudaGetLastError());
 
-        struct box32 **host_boxptr = new struct box32 *[ACTIVATE_VOXNUM];
+        struct Voxel32 **host_boxptr = new struct Voxel32 *[ACTIVATE_VOXNUM];
         // int **p = new int* [5];
-        struct box32 **dev_boxptr;
-        cudaMalloc((void **)&dev_boxptr, sizeof(struct box32 *) * ACTIVATE_VOXNUM);
-        srcbox.init();
+        struct Voxel32 **dev_boxptr;
+        cudaMalloc((void **)&dev_boxptr, sizeof(struct Voxel32 *) * ACTIVATE_VOXNUM);
         cv::Mat points, color;
 
         struct kernelPara *gpu_kpara;
         cudaMalloc((void **)&gpu_kpara, sizeof(struct kernelPara));
         Timer tm;
-        DeviceArray2D<xyzPoints> depthScaled(480, 640);
-        DeviceArray2D<xyzPoints> gocloud(480, 640);
+        DeviceArray2D<PosType> depthScaled(480, 640);
+        DeviceArray2D<PosType> gocloud(480, 640);
 
-        xyzPoints *host_points; //=new xyzPoints;
-        ck(cudaMallocHost((void **)&host_points, sizeof(xyzPoints) * 480 * 640));
-        // std::cout<<sizeof( xyzPoints)<<std::endl;
+        PosType *host_points; //=new PosType;
+        ck(cudaMallocHost((void **)&host_points, sizeof(PosType) * 480 * 640));
+        // std::cout<<sizeof( PosType)<<std::endl;
 
         //
         DeviceArray2D<unsigned short> depth_device_img(480, 640);
@@ -504,7 +502,7 @@ struct TSDF
 
             //
             //
-            // depthScaled.download(pnormal,sizeof(xyzPoints)*640);
+            // depthScaled.download(pnormal,sizeof(PosType)*640);
             //
             device::scaleDepth<<<grid_scale, block_scale>>>(depth_device_img, depthScaled, gocloud, p_int, g_cam, intr);
             checkCUDA(cudaGetLastError());
@@ -558,7 +556,7 @@ struct TSDF
             // }
             assert(i != 0);
             //将需要处理的box地址拷贝到GPU
-            cudaMemcpy((void *)dev_boxptr, (void *)host_boxptr, (i) * sizeof(struct box32 *), cudaMemcpyHostToDevice);
+            cudaMemcpy((void *)dev_boxptr, (void *)host_boxptr, (i) * sizeof(struct Voxel32 *), cudaMemcpyHostToDevice);
             checkCUDA(cudaGetLastError());
             // std::cout << "frame_idx: " << frame_idx << " cnt:i=" << i << " " <<  << std::endl;
             // assert(num != 0);

@@ -4,72 +4,77 @@
 #include <vector>
 #include "cuda/imgproc.cuh"
 
+// __device__ __host__ inline float3 operator*(float3 v1, float a)
+// {
+//     return make_float3(v1.x * a, v1.y * a, v1.z * a);
+// }
+
 class mappoints
 {
 public:
-    SkipList<uint32_t, struct box32_points *> *pskipList;
-    std::vector<struct box32_points *> pboxs;
+    SkipList<uint32_t, struct CloudBox *> *pskipList;
+    std::vector<struct CloudBox *> cloudBoxs;
+    std::vector<struct CpuVoxel32 *> mp_cpuVoxel32;
     mappoints()
     {
-        pskipList = new SkipList<uint32_t, struct box32_points *>(6);
+        pskipList = new SkipList<uint32_t, struct CloudBox *>(6);
     }
     // TODO 高效搜索
-    bool getCube32(uint64_t idx, struct box32 *&cpu_pbox)
+    bool getCube32(uint64_t idx, struct Voxel32 *&cpu_pbox)
     {
-        u32_4byte u32;
-        u64_4byte u64;
-        u64.u64 = idx;
-        u32.x = u64.x;
-        u32.y = u64.y;
-        u32.z = u64.z;
-
-        for (int i = 0; i < pboxs.size(); i++)
+        for (int i = 0; i < mp_cpuVoxel32.size(); i++)
         {
-            if (pboxs[i]->index.u32 == u32.u32)
+            if (mp_cpuVoxel32[i]->wordPos.u64 == idx)
             {
-                hdtest(i, cpu_pbox);
+                cloudBoxs[i]->copyTobox32(cpu_pbox);
+                cloudBoxs[i] = cloudBoxs.back();
+                cloudBoxs.pop_back();
+                // assert(0);
                 return true;
             }
         }
         return false;
     }
-    // box32转为 pointbox32
-    void addpoint(struct box32 &cpu_pbox, u64_4byte &center)
+    void addpoint(struct CpuVoxel32 &cpu_pbox, const u64B4 &center) //转换成点云
     {
-        cv::Mat _points, color;
-        // u64_4byte u64wd;
-        // u64wd.x=cpu_pbox.index.x+center.x;
-        // u64wd.y=cpu_pbox.index.y+center.y;
-        // u64wd.z=cpu_pbox.index.z+center.z;
-
-        cpu_pbox.tobuff(_points, color, center);
-        box32_points *points = new box32_points(center);
-        points->index = cpu_pbox.index;
-        points->index.cnt = 0;
-        // points->index.type = 0;
-        for (std::size_t i = 0; i < _points.rows; i++) //
-        {
-            UPoints up;
-            const cv::Vec3f &ptf = _points.at<cv::Vec3f>(i, 0);
-            const cv::Vec3b &cob = color.at<cv::Vec3b>(i, 0);
-            memcpy((void *)up.xyz, ptf.val, sizeof(float) * 3);
-            memcpy((void *)up.rgb, cob.val, sizeof(uint8_t) * 3);
-            points->points.push_back(up);
-        }
-        pboxs.push_back(points);
+        mp_cpuVoxel32.push_back(&cpu_pbox);
     }
 
-    void addpoint_gpu(struct box32 &cpu_pbox, u64_4byte &center)
+    // box32转为 pointbox32
+    // void addpoint(struct CpuVoxel32 &cpu_pbox, const u64B4 &center) //转换成点云
+    // {
+    //     cv::Mat _points, color;
+    //     u64B4 u64wd;
+
+    //     u64wd.x = cpu_pbox.pvoxel32->index.x + center.x;
+    //     u64wd.y = cpu_pbox.pvoxel32->index.y + center.y;
+    //     u64wd.z = cpu_pbox.pvoxel32->index.z + center.z;
+
+    //     cpu_pbox.pvoxel32->tobuff(_points, color, center);
+    //     CloudBox *pCloudBox = new CloudBox(cpu_pbox.pvoxel32->index, u64wd);
+    //     for (std::size_t i = 0; i < _points.rows; i++) //
+    //     {
+    //         UPoints up;
+    //         const cv::Vec3f &ptf = _points.at<cv::Vec3f>(i, 0);
+    //         const cv::Vec3b &cob = color.at<cv::Vec3b>(i, 0);
+    //         memcpy((void *)up.xyz, ptf.val, sizeof(float) * 3);
+    //         memcpy((void *)up.rgb, cob.val, sizeof(uint8_t) * 3);
+    //         pCloudBox->points.push_back(up);
+    //     }
+    //     cloudBoxs.push_back(pCloudBox);
+    // }
+
+    void addpoint_gpu(struct Voxel32 &cpu_pbox, u64B4 &center)
     {
         // cv::Mat _points, color;
-        // u64_4byte u64wd;
+        // u64B4 u64wd;
         // u64wd.x=cpu_pbox.index.x+center.x;
         // u64wd.y=cpu_pbox.index.y+center.y;
         // u64wd.z=cpu_pbox.index.z+center.z;
 
-        struct box32 *gpu_pbox;
-        ck(cudaMalloc((void **)&gpu_pbox, sizeof(struct box32)));
-        ck(cudaMemcpy(gpu_pbox, (void *)(&cpu_pbox), sizeof(struct box32), cudaMemcpyHostToDevice));
+        struct Voxel32 *gpu_pbox;
+        ck(cudaMalloc((void **)&gpu_pbox, sizeof(struct Voxel32)));
+        ck(cudaMemcpy(gpu_pbox, (void *)(&cpu_pbox), sizeof(struct Voxel32), cudaMemcpyHostToDevice));
 
         struct ex_buf_ *point_buf;
         ck(cudaMallocManaged((void **)&point_buf, sizeof(ex_buf_)));
@@ -82,8 +87,7 @@ public:
 
         // std::cout << point_buf->dev_points_num << std::endl;
         // cpu_pbox.tobuff(_points, color, center);
-        box32_points *points = new box32_points(center);
-        points->index = cpu_pbox.index;
+        CloudBox *points = new CloudBox(cpu_pbox.index, center);
         points->index.cnt = 0;
         // points->index.type = 0;
 
@@ -99,21 +103,21 @@ public:
         //     memcpy((void *)&up, &point_buf->up[i], sizeof(UPoints) * 3);
         //     points->points.push_back(up);
         // }
-        pboxs.push_back(points);
+        cloudBoxs.push_back(points);
     }
 
-    void addpoint_gpu_batch(struct box32 *gpu_pbox, u64_4byte &center, int num)
+    void addpoint_gpu_batch(struct Voxel32 *gpu_pbox, u64B4 &center, int num)
     {
         // cv::Mat _points, color;
-        // u64_4byte u64wd;
+        // u64B4 u64wd;
         // u64wd.x=cpu_pbox.index.x+center.x;
         // u64wd.y=cpu_pbox.index.y+center.y;
         // u64wd.z=cpu_pbox.index.z+center.z;
 
-        // struct box32 *gpu_pbox;
-        // ck(cudaMalloc((void **)&gpu_pbox, sizeof(struct box32) * num));
+        // struct Voxel32 *gpu_pbox;
+        // ck(cudaMalloc((void **)&gpu_pbox, sizeof(struct Voxel32) * num));
 
-        // ck(cudaMemcpy(gpu_pbox, (void *)(cpu_pbox), sizeof(struct box32) * num, cudaMemcpyHostToDevice));
+        // ck(cudaMemcpy(gpu_pbox, (void *)(cpu_pbox), sizeof(struct Voxel32) * num, cudaMemcpyHostToDevice));
 
         struct ex_buf_ *point_buf;
         ck(cudaMallocManaged((void **)&point_buf, sizeof(ex_buf_) * num));
@@ -133,10 +137,10 @@ public:
         // points->index.type = 0;
         for (int i = 0; i < num; i++)
         {
-            box32_points *points = new box32_points(center);
+            CloudBox *points = new CloudBox(center);
             points->points.resize(point_buf[i].dev_points_num);
             memcpy(&points->points[0], (void *)&point_buf[i].up, sizeof(UPoints) * point_buf[i].dev_points_num);
-            pboxs.push_back(points);
+            cloudBoxs.push_back(points);
         }
         ck(cudaFree(point_buf));
         ck(cudaFree(gpu_pbox));
@@ -152,69 +156,15 @@ public:
         // //     points->points.push_back(up);
         // // }
     }
-
-    struct box32 *expoint(struct box32_points *&cpu_pbox)
-    {
-        struct box32 *pcpu_box32 = new struct box32;
-        for (std::size_t i = 0; i < cpu_pbox->points.size(); i++) //
-        {
-            u32_4byte u64;
-            const UPoints &ptf = cpu_pbox->points[i];
-            u64.x = (ptf.xyz[0] * 3.125f); // std::floor
-            u64.y = (ptf.xyz[1] * 3.125f);
-            u64.z = (ptf.xyz[2] * 3.125f);
-
-            u32_4byte u32;
-            u32.x = (ptf.xyz[0] - u64.x * 0.32f) * 100;
-            u32.y = (ptf.xyz[1] - u64.y * 0.32f) * 100;
-            u32.z = (ptf.xyz[2] - u64.z * 0.32f) * 100;
-            assert(u32.x < 32);
-            assert(u32.y < 32);
-            assert(u32.z < 32);
-            int index = u32.x + u32.y * 32 + u32.z * 32 * 32;
-            pcpu_box32->index = u64;
-            pcpu_box32->pVoxel[index].tsdf = 0.10f;
-            pcpu_box32->pVoxel[index].weight = 1.0f;
-
-            pcpu_box32->pVoxel[index].rgb[0] = ptf.rgb[0];
-            pcpu_box32->pVoxel[index].rgb[1] = ptf.rgb[1];
-            pcpu_box32->pVoxel[index].rgb[2] = ptf.rgb[2];
-        }
-        // std::cout<<__LINE__<<std::endl;
-        // u64_4byte u640;
-        // std::cout<<boxmap.size()<<std::endl;
-
-        // for (auto &kv : boxmap) {
-        //     struct box32 *p=kv.second;
-        //     // u64_4byte u64;
-        //     // u64.u64=kv.first;
-        //     // p->index.u32.x=u64.u32.x;
-        //     // p->index.u32.y=u64.u32.y;
-        //     // p->index.u32.z=u64.u32.z;
-
-        //     // std::cout<<u64.u64<<std::endl;
-
-        //     p->tobuff(expoints,excolor,u640);
-        // }
-
-        // }
-        return pcpu_box32;
-    }
     //多个BOX合并为一个点云
     void marg(cv::Mat &_points, cv::Mat &color)
     {
-        // std::vector<struct box32_points *> pboxs;
-        // std::vector<uint32_t> pkey;
-        // pskipList->display_list(pkey,pboxs);
-
-        std::cout << "pboxs:" << pboxs.size() << std::endl;
-        for (auto &it : pboxs)
+        // std::cout << "cloudBoxs:" << cloudBoxs.size() << std::endl;
+        for (auto &it : cloudBoxs)
         {
             cv::Vec3f ptf;
-            ;
             cv::Vec3b cob;
-            // std::cout<<"pboxs:"<<pboxs.size()<<std::endl;
-
+            // std::cout<<"cloudBoxs:"<<cloudBoxs.size()<<std::endl;
             for (int i = 0; i < it->points.size(); i++)
             {
                 UPoints &up = it->points[i];
@@ -225,19 +175,29 @@ public:
             }
         }
     }
-
+    void margCpuVoxel32Tocloud(cv::Mat &_points, cv::Mat &color)
+    {
+        // std::cout << "cloudBoxs:" << cloudBoxs.size() << std::endl;
+        for (auto &it : mp_cpuVoxel32)
+        {
+            cv::Vec3f ptf;
+            cv::Vec3b cob;
+            it->pvoxel32->tobuff(_points,color,it->wordPos);
+   
+        }
+    }
     void test(cv::Mat &pt, cv::Mat &color, cv::Mat &expoints, cv::Mat &excolor)
     {
         load("maptest.cube.cloud");
 
-        std::map<uint32_t, struct box32 *> boxmap;
-        std::cout << "pboxs:" << pboxs.size() << std::endl;
-        for (auto &it : pboxs)
+        std::map<uint32_t, struct Voxel32 *> boxmap;
+        std::cout << "cloudBoxs:" << cloudBoxs.size() << std::endl;
+        for (auto &it : cloudBoxs)
         {
             cv::Vec3f ptf;
             ;
             cv::Vec3b cob;
-            // std::cout<<"pboxs:"<<pboxs.size()<<std::endl;
+            // std::cout<<"cloudBoxs:"<<cloudBoxs.size()<<std::endl;
             for (int i = 0; i < it->points.size(); i++)
             {
                 UPoints &up = it->points[i];
@@ -251,13 +211,13 @@ public:
                 u64.y = std::floor(retf[1]);
                 u64.z = std::floor(retf[2]);
 
-                std::map<uint32_t, struct box32 *>::iterator iter = boxmap.find(u64.u32);
+                std::map<uint32_t, struct Voxel32 *>::iterator iter = boxmap.find(u64.u32);
                 if (iter != boxmap.end())
                 {
                 }
                 else
                 {
-                    boxmap[u64.u32] = new struct box32();
+                    boxmap[u64.u32] = new struct Voxel32();
                 }
                 u32_4byte u32;
                 u32.x = (ptf[0] - u64.x * 0.32f) * 100;
@@ -275,13 +235,13 @@ public:
                 boxmap[u64.u32]->pVoxel[index].rgb[2] = cob[2];
             }
         }
-        u64_4byte u640;
+        u64B4 u640;
 
         std::cout << boxmap.size() << std::endl;
 
         for (auto &kv : boxmap)
         {
-            struct box32 *p = kv.second;
+            struct Voxel32 *p = kv.second;
             p->tobuff(expoints, excolor, u640);
         }
     }
@@ -289,15 +249,15 @@ public:
     void save(std::string fname = "map.cube.cloud")
     {
         std::fstream file(fname, std::ios::out | std::ios::binary); // | ios::app
-        size_t num = pboxs.size();
+        size_t num = cloudBoxs.size();
         file.write(reinterpret_cast<char *>(&num), sizeof(size_t));
-        std::cout << "pboxs:" << pboxs.size() << std::endl;
-        for (auto &it : pboxs)
+        std::cout << "cloudBoxs:" << cloudBoxs.size() << std::endl;
+        for (auto &it : cloudBoxs)
         {
             cv::Vec3f ptf;
             ;
             cv::Vec3b cob;
-            // std::cout<<"pboxs:"<<pboxs.size()<<std::endl;
+            // std::cout<<"cloudBoxs:"<<cloudBoxs.size()<<std::endl;
             size_t point_num = it->points.size();
             uint32_t index_ = it->index.u32;
             file.write(reinterpret_cast<char *>(&index_), sizeof(uint32_t));
@@ -316,9 +276,9 @@ public:
         }
         file.close();
 
-        // std::vector<struct box32_points *> pboxs;
+        // std::vector<struct CloudBox *> cloudBoxs;
         // std::vector<uint32_t> pkey;
-        // pskipList->display_list(pkey,pboxs);
+        // pskipList->display_list(pkey,cloudBoxs);
 
         // pskipList
     };
@@ -332,7 +292,7 @@ public:
             uint32_t index_;
 
             file.read(reinterpret_cast<char *>(&index_), sizeof(uint32_t));
-            struct box32_points *pboxp = new struct box32_points();
+            struct CloudBox *pboxp = new struct CloudBox();
             size_t point_num; //=it->points.size();
             file.read(reinterpret_cast<char *>(&point_num), sizeof(size_t));
             pboxp->points.resize(point_num);
@@ -343,57 +303,16 @@ public:
 
             //     pboxp->push_back();
             // }
-            pboxs.push_back(pboxp);
+            cloudBoxs.push_back(pboxp);
         }
         file.close();
     };
 
     // private:
-    void hdtest(int index_, struct box32 *&pboxmap)
+
+    void hdtest_gpu(int index_, struct Voxel32 *&pboxmap)
     {
-        // load("maptest.cube.cloud");
-        pboxmap = new struct box32();
-        pboxmap->init();
-        // std::cout<<"pboxs:"<<pboxs.size()<<std::endl;
-        auto it = pboxs[index_];
-        {
-            cv::Vec3f ptf;
-
-            cv::Vec3b cob;
-            // std::cout<<"pboxs:"<<pboxs.size()<<std::endl;
-            for (int i = 0; i < it->points.size(); i++)
-            {
-                UPoints &up = it->points[i];
-                memcpy(ptf.val, (void *)up.xyz, sizeof(float) * 3);
-                memcpy(cob.val, (void *)up.rgb, sizeof(uint8_t) * 3);
-
-                u32_4byte u64;
-                cv::Vec3f retf = 3.125f * ptf;
-                // cv::Vec3s rets;
-                u64.x = std::floor(retf[0]);
-                u64.y = std::floor(retf[1]);
-                u64.z = std::floor(retf[2]);
-
-                u32_4byte u32;
-                u32.x = (ptf[0] - u64.x * 0.32f) * 100;
-                u32.y = (ptf[1] - u64.y * 0.32f) * 100;
-                u32.z = (ptf[2] - u64.z * 0.32f) * 100;
-                assert(u32.x < 32);
-                assert(u32.y < 32);
-                assert(u32.z < 32);
-                int index = u32.x + u32.y * 32 + u32.z * 32 * 32;
-                pboxmap->index = u64;
-                pboxmap->pVoxel[index].tsdf = 0.0f;
-                pboxmap->pVoxel[index].weight = 50.0f;
-                pboxmap->pVoxel[index].rgb[0] = cob[0];
-                pboxmap->pVoxel[index].rgb[1] = cob[1];
-                pboxmap->pVoxel[index].rgb[2] = cob[2];
-            }
-        }
-    }
-    void hdtest_gpu(int index_, struct box32 *&pboxmap)
-    {
-        auto it = pboxs[index_];
+        auto it = cloudBoxs[index_];
         size_t psize = it->points.size();
         if (psize == 0)
         {
@@ -402,7 +321,7 @@ public:
         // std::cout << it->points.size() << std::endl;
         // load("maptest.cube.cloud");
         // hdtest(num, pboxmap);
-        ck(cudaMalloc((void **)&pboxmap, sizeof(box32)));
+        ck(cudaMalloc((void **)&pboxmap, sizeof(Voxel32)));
         dim3 grid0(CUBEVOXELSIZE, 1, 1), block0(CUBEVOXELSIZE, CUBEVOXELSIZE, 1); // 设置参数
         device::cloud2grids_init<<<grid0, block0>>>(pboxmap);
         // cudaDeviceSynchronize();
@@ -415,21 +334,21 @@ public:
         cudaMemcpy((void *)(pup), (void *)(&it->points[0]), sizeof(UPoints) * psize, cudaMemcpyHostToDevice);
         ck(cudaGetLastError());
         dim3 grid(psize, 1, 1), block(1, 1, 1); // 设置参数
-        device::cloud2grids<<<grid, block>>>(pboxmap, pup,psize);
+        device::cloud2grids<<<grid, block>>>(pboxmap, pup, psize);
         //  cudaDeviceSynchronize();
         // cudaFree(pup);
         // cudaFree(pboxmap);
         //
         ck(cudaGetLastError());
-        // pboxmap = new struct box32();
+        // pboxmap = new struct Voxel32();
 
-        // std::cout<<"pboxs:"<<pboxs.size()<<std::endl;
+        // std::cout<<"cloudBoxs:"<<cloudBoxs.size()<<std::endl;
         //
         // {
         //     cv::Vec3f ptf;
 
         //     cv::Vec3b cob;
-        //     // std::cout<<"pboxs:"<<pboxs.size()<<std::endl;
+        //     // std::cout<<"cloudBoxs:"<<cloudBoxs.size()<<std::endl;
         //     for (int i = 0; i < it->points.size(); i++)
         //     {
         //         UPoints &up = it->points[i];
