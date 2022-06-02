@@ -11,7 +11,7 @@ save_skip_list_num: 800  #2 load
 #12112
 # matpose: /home/u20/dataset/paper/f1_floor f2_pioneer_360
 # matpose: "/dataset/paper/f3_walking_static"
-matpose: "/dataset/paper/f2_pioneer_360"
+matpose: "/dataset/img"
 
 show_cloud: 1
 #True

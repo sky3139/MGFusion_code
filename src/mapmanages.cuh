@@ -88,12 +88,7 @@ public:
     void savenode_cube_(u64B4 &center)
     {
         std::vector<struct CpuVoxel32 *> cpu_pbox_use; //记录已经使用的box在CPU中的地址
-
         int start_id = cpu_pbox_use.size();
-        // u64B4 u64wd;
-        // u64wd.x = cpu_pbox.index.x + center.x;
-        // u64wd.y = cpu_pbox.index.y + center.y;
-        // u64wd.z = cpu_pbox.index.z + center.z;
         cudaStream_t stream;
         cudaStreamCreate(&stream);
 
@@ -109,15 +104,8 @@ public:
         // // tm.Start();
         for (int i = 0; i < gpu_pbox_use.size(); i++) //转换成全局坐标
         {
-            struct CpuVoxel32 *pbox = cpu_pbox_use[i + start_id];
-            // pbox->index.x += cpu_kpara.center.x;
-            // pbox->index.y += cpu_kpara.center.y;
-            // pbox->index.z += cpu_kpara.center.z;
-            // if (use_skip_list)
-            //     pskipList->insert_element(u64.u64, pbox);
-            mcps.addpoint(*pbox, cpu_kpara.center);
+            mcps.mp_cpuVoxel32.push_back(cpu_pbox_use[i + start_id]); 
         }
-        // // tm.PrintSeconds(" b");
         cudaStreamDestroy(stream);
         // std::vector<struct Voxel32 *>().swap(cpu_pbox_use);
     }
@@ -144,7 +132,6 @@ public:
     void resetnode()
     {
         struct Voxel32 srcbox;
-
         cudaStream_t stream;
         cudaStreamCreate(&stream);
         // std::cout << "size=" << gpu_pbox_use.size() << " " << 0 << std::endl;

@@ -331,8 +331,10 @@ struct TSDF
         ck(cudaMallocHost((void **)&host_32buf, sizeof(RGB) * 480 * 640));
 
         Intr intr(parser->cam_K);
-        // cam_pose_str _cam;
+        intr.sca = 1.0f / parser->depth_factor;
         intr.print();
+
+
         int mode = 0;
         int save_skip_list_num;
         fs["mode"] >> mode;
@@ -553,7 +555,7 @@ struct TSDF
             if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 20 == 1)
             {
                 // //     // tm.Start();
-                    mm.savenode_cube_(mm.cpu_kpara.center);
+                mm.savenode_cube_(mm.cpu_kpara.center);
                 // //     // // atime[0] = tm.ElapsedMicroSeconds() * 0.001f;
                 mm.cpu_kpara.center.x = std::floor(parser->m_pose.val[3] * 3.125f);
                 mm.cpu_kpara.center.y = std::floor(parser->m_pose.val[7] * 3.125f);
@@ -584,11 +586,6 @@ struct TSDF
 
             Mat po_int, col_or;
             mm.mcps.margCpuVoxel32Tocloud(po_int, col_or);
-            // for (int i = 0; i < mm.mcps.cloudBoxs.size(); i++)
-            // {
-            //     auto ptr = mm.cpu_pbox_use[i];
-            //     ptr->tobuff(po_int, col_or, mm.cpu_kpara.center);
-            // }
             if (po_int.rows > 0)
                 mp_v->inset_cloud("curr22", cv::viz::WCloud(po_int, col_or));
             cv::waitKey(1);

@@ -106,6 +106,7 @@
         "matrixd": "cpp",
         "matrixf": "cpp",
         "plane": "cpp",
-        "shape": "cpp"
+        "shape": "cpp",
+        "matrixtemplate": "cpp"
     }
 }

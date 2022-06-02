@@ -26,9 +26,10 @@ public:
         {
             if (mp_cpuVoxel32[i]->wordPos.u64 == idx)
             {
-                cloudBoxs[i]->copyTobox32(cpu_pbox);
-                cloudBoxs[i] = cloudBoxs.back();
-                cloudBoxs.pop_back();
+                cpu_pbox = mp_cpuVoxel32[i]->pvoxel32; //->copyTobox32(cpu_pbox);
+                delete mp_cpuVoxel32[i];
+                mp_cpuVoxel32[i] = mp_cpuVoxel32.back();
+                mp_cpuVoxel32.pop_back();
                 // assert(0);
                 return true;
             }
@@ -182,8 +183,7 @@ public:
         {
             cv::Vec3f ptf;
             cv::Vec3b cob;
-            it->pvoxel32->tobuff(_points,color,it->wordPos);
-   
+            it->pvoxel32->tobuff(_points, color, it->wordPos);
         }
     }
     void test(cv::Mat &pt, cv::Mat &color, cv::Mat &expoints, cv::Mat &excolor)

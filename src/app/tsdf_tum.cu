@@ -461,7 +461,6 @@ struct TSDF {
 
 
         Intr intr(cam_K_vec);
-        // cam_pose_str _cam;
         intr.print();
         int mode=0;
         int save_skip_list_num;

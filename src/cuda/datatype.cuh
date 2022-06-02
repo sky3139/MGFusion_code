@@ -17,6 +17,7 @@ struct Intr
 {
     float fx, fy, cx, cy;
     float2 finv;
+    float sca;
     Intr() : fx(0), fy(0), cx(0), cy(0) {}
     Intr(float fx_, float fy_, float cx_, float cy_) : fx(fx_), fy(fy_), cx(cx_), cy(cy_)
     {
@@ -30,12 +31,11 @@ struct Intr
     }
     Intr(cv::Mat &k)
     {
-
         fx = k.at<float>(0, 0);
         fy = k.at<float>(1, 1);
-
         cx = k.at<float>(0, 2);
         cy = k.at<float>(1, 2);
+        finv = make_float2(1.0f / fx, 1.0f / fy);
     }
     // Reprojector::Reprojector(float fx, float fy, float cx, float cy)
     inline __device__ float3 reprojector(int u, int v, float z) const
@@ -46,13 +46,10 @@ struct Intr
     }
     void print()
     {
-        printf("%f,%f,%f,%f\n", fx, fy, cx, cy);
+        printf("%f,%f,%f,%f sca:%f,%f\n", fx, fy, cx, cy,sca,finv.x);
     }
 };
-struct cam_pose_str
-{
-    float val[16];
-};
+
 static inline int divUp(int total, int grain)
 {
     return (total + grain - 1) / grain;

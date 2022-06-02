@@ -184,15 +184,11 @@ namespace device
     {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
-
         if (x >= depth.cols || y >= depth.rows)
             return;
-        int Dp = depth.ptr(y)[x];
+        float Dp = depth.ptr(y)[x] * intr.sca;
 
-        PosType xp; //=intr.reprojector(x,y,Dp*0.001f);
-        xp.z = Dp * 0.0002f;
-        xp.x = xp.z * (x - intr.cx) / intr.fx;
-        xp.y = xp.z * (y - intr.cy) / intr.fy;
+        PosType xp = intr.reprojector(x, y, Dp);
 
         // float xl = (x - intr.cx) / intr.fx;
         // float yl = (y - intr.cy) / intr.fy;
@@ -200,7 +196,6 @@ namespace device
         scaled.ptr(y)[x] = xp; // Dp * 0.0002f; //  / 1000.f; //meters
 
         PosType gp;
-
         __shared__ float cam[16];
 
         if (0 == threadIdx.x && threadIdx.y == 0)
@@ -362,7 +357,7 @@ namespace device
                 {
                     _color.x = voxel.rgb[0];
                     _color.y = voxel.rgb[1];
-                    _color.z= voxel.rgb[2];
+                    _color.z = voxel.rgb[2];
                 }
                 // pos.rgb[0] = 255;//voxel.rgb[0];
                 // pos.rgb[1] = 255;//index.x;//voxel.rgb[1];
@@ -376,8 +371,8 @@ namespace device
                 }
                 else // if (index.type == 2)
                 {
-                    _color.x= 0;   // voxel.rgb[0];
-                    _color.y= 255; // index.x;//voxel.rgb[1];
+                    _color.x = 0;   // voxel.rgb[0];
+                    _color.y = 255; // index.x;//voxel.rgb[1];
                     _color.z = 0;   // index.x;//voxel.rgb[2];
                 }
             }

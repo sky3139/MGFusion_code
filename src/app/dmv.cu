@@ -338,7 +338,6 @@ struct TSDF
         ck(cudaMallocHost((void **)&host_32buf, sizeof(RGB) * 480 * 640));
 
         Intr intr(cam_K_vec);
-        // cam_pose_str _cam;
         intr.print();
         int mode = 0;
         int save_skip_list_num;
