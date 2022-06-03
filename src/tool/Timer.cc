@@ -9,6 +9,7 @@
 using namespace std::chrono;
 
 Timer::Timer() : started_(false), paused_(false) {}
+Timer::Timer(std::string msg) : msg(msg) { Start(); }
 
 void Timer::Start()
 {

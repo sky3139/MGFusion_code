@@ -151,7 +151,53 @@ void mapmanages::exmatcloud(u64B4 center)
         exmatcloud_bynum(curr_point, curr_color, center, dev_boxpool, ALLL_NUM);
     }
 }
-
+void mapmanages::movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &src_center, u64B4 &now_center)
+{
+    Timer t("movenode_62");
+    struct Voxel32 srcbox;
+    u32B4 u32new;
+    // std::cout << "size=" << gpu_pbox_use.size() << " " << 0 << std::endl;
+    struct Voxel32 **cpu_pbox = (struct Voxel32 **)calloc(CURR_BOX_NUM, sizeof(struct Voxel32 *));
+    struct Voxel32 **dev_pbox_use;
+    int number = gpu_pbox_use.size();
+    cudaMalloc(&dev_pbox_use, sizeof(struct Voxel32 *) * number);
+    ck(cudaMemcpy((void *)dev_pbox_use, (void *)&gpu_pbox_use[0], (number) * sizeof(struct Voxel32 *), cudaMemcpyHostToDevice));
+    u32B4 *srcid, *nowid;
+    cudaMallocManaged(&srcid, sizeof(u32B4) * number);
+    cudaMallocManaged(&nowid, sizeof(u32B4) * number);
+    bool *mask;
+    cudaMallocManaged(&mask, sizeof(bool) * number);
+    ck(cudaGetLastError());
+    dim3 grid(number, 1, 1), block(1, 1, 1);
+    device::update_loacl_index<<<grid, block>>>(dev_pbox_use, src_center, now_center, srcid, nowid, mask);
+    int cnt = 0, cnt2 = 0;
+    ck(cudaDeviceSynchronize());
+    for (int i = 0; i < number; i++)
+    {
+        if (mask[i] == false) //该导出
+        {
+            gpu_pbox_free.push(gpu_pbox_use[i]);
+            cnt++;
+            cudaMemset(gpu_pbox_use[i], 0, sizeof(struct Voxel32));
+            // cudaMemcpy(&srcbox, gpu_pbox_use[i], sizeof(struct Voxel32), cudaMemcpyDeviceToHost);
+            gpu_pbox_use[i] = gpu_pbox_use.back();
+            gpu_pbox_use.pop_back();
+            
+            continue;
+        }
+        cnt2++;
+        cpu_pbox[srcid[i].u32] = pboxs[nowid[i].u32];
+    }
+    free(pboxs);
+    cudaFree(dev_pbox_use);
+    cudaFree(srcid);
+    cudaFree(nowid);
+    cudaFree(mask);
+    pboxs = cpu_pbox;
+    std::cout << number << "/" << cnt << " " << cnt2 << std::endl;
+    // std::vector<struct Voxel32 *>().swap(gpu_pbox_use);
+    // std::cout << "size=" << gpu_pbox_use.size() << " " << 0 << std::endl;
+}
 void mapmanages::skiplistbox(cv::Mat &_points, cv::Mat &color, u64B4 &center)
 {
     std::vector<struct Voxel32 *> pboxs;

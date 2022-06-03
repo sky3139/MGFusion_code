@@ -24,7 +24,9 @@
 
 class mapmanages
 {
-
+private:
+    struct Voxel32 *dev_boxpool; //已申请的ALLL_NUM个box空间的首地址
+public:
 public:
     // config
     bool use_skip_list = false;
@@ -35,14 +37,13 @@ public:
     SkipList<uint64_t, struct Voxel32 *> *pskipList;
 
     mappoints mcps;
-    struct Voxel32 *dev_boxpool;                //已申请的ALLL_NUM个box空间的首地址
     std::stack<struct Voxel32 *> gpu_pbox_free; //记录空闲的box在GPU中的地址
     std::vector<struct Voxel32 *> gpu_pbox_use; //记录已经使用的box在GPU中的地址
 
     cv::Mat points, color;
     struct kernelPara cpu_kpara;
     uint8_t tfidex = 0;
-
+    void movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &src_center, u64B4 &now_center);
     mapmanages();
     // bool find_in_cpu_pbox_use(uint64_t idx, struct Voxel32 *&cpu_pbox)
     // {
@@ -57,7 +58,7 @@ public:
     {
         assert(gpu_pbox_free.size() != 0);
         struct Voxel32 *cpu_pbox = nullptr;
-        u32_4byte u32;
+        u32B4 u32;
         u32.u32 = val;
 
         u64B4 u64; //计算绝对坐标
@@ -151,7 +152,7 @@ public:
     void movenode(u64B4 &center)
     {
         struct Voxel32 srcbox;
-        u32_4byte u32;
+        u32B4 u32;
         // std::cout << "size=" << gpu_pbox_use.size() << " " << 0 << std::endl;
         struct Voxel32 **cpu_pbox = (struct Voxel32 **)calloc(CURR_BOX_NUM, sizeof(struct Voxel32 *));
 
@@ -301,7 +302,7 @@ public:
         std::map<uint32_t, struct Voxel32 *> boxmap;
         for (std::size_t i = 0; i < _points.rows; i++) //
         {
-            u32_4byte u64;
+            u32B4 u64;
             const cv::Vec3f &ptf = _points.at<cv::Vec3f>(i, 0);
             const cv::Vec3b &cob = color.at<cv::Vec3b>(i, 0);
 
@@ -325,7 +326,7 @@ public:
             //             if()
             // std::cout<<__LINE__<<" "<<i <<" "<<(ptf[1]- u32.y*0.32f)*100<<std::endl;
 
-            u32_4byte u32;
+            u32B4 u32;
             u32.x = (ptf[0] - u64.x * 0.32f) * 100;
             u32.y = (ptf[1] - u64.y * 0.32f) * 100;
             u32.z = (ptf[2] - u64.z * 0.32f) * 100;
@@ -393,10 +394,10 @@ public:
 // {
 //     if ((*pboxs)[k] == NULL)
 //         continue;
-//     u32_4byte u32;
+//     u32B4 u32;
 //     u32.u32 = k;
 
-//     u32_4byte cam32;
+//     u32B4 cam32;
 //     cam32.x = std::floor(parser->m_pose.val[3] / (float)(VOXELSIZE));
 //     cam32.y = std::floor(parser->m_pose.val[7] / (float)(VOXELSIZE));
 //     cam32.z = std::floor(parser->m_pose.val[11] / (float)(VOXELSIZE));
@@ -492,7 +493,7 @@ public:
                 continue;
             cudaMemcpy((void *)&srcbox, (void *)((*pboxs)[i]), sizeof(Voxel32), cudaMemcpyDeviceToHost);
             checkCUDA(cudaGetLastError());
-            u32_4byte u32 = srcbox.index;
+            u32B4 u32 = srcbox.index;
             for (int8_t pt_grid_z = 0; pt_grid_z < 32; pt_grid_z++)
             {
                 for (int8_t pt_grid_y = 0; pt_grid_y < 32; pt_grid_y++)

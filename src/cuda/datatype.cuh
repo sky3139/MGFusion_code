@@ -123,7 +123,7 @@ union UPoints
     };
 };
 #define PosType float3
-union u32_4byte
+union u32B4
 {
     uint32_t u32 = 0x00000000;
     struct
@@ -134,11 +134,38 @@ union u32_4byte
         uint8_t type : 2;
         uint8_t cnt : 6;
     };
-    // int8_t byte4[4];
+
+    __host__ void print()
+    {
+        printf("%d %d %d\n", x, y, z);
+    }
+    __device__ __host__ u32B4(uint32_t _u = 0) : u32(_u){};
+    __host__ __device__ friend u64B4 operator+(const u32B4 &u32, u64B4 u64);
 };
+
+// #define MY_COM_OPERA (
+__host__ __device__ inline u64B4 operator+(const u32B4 &u32, u64B4 u64)
+{
+    u64B4 ans;
+    ans.x = u32.x + u64.x;
+    ans.y = u32.y + u64.y;
+    ans.z = u32.z + u64.z;
+    ans._rev = 0;
+    return ans;
+}
+__host__ __device__ inline u64B4 operator-(const u64B4 &u32, u64B4 u64)
+{
+    u64B4 ans;
+    ans.x = u32.x - u64.x;
+    ans.y = u32.y - u64.y;
+    ans.z = u32.z - u64.z;
+    ans._rev = 0;
+    return ans;
+}
+
 struct Voxel32
 {
-    u32_4byte index;
+    u32B4 index;
     bool tobuff(cv::Mat &points, cv::Mat &color, const u64B4 &center)
     {
         if (index.cnt > 0)
@@ -206,11 +233,11 @@ struct CpuVoxel32
 };
 struct CloudBox
 {
-    u32_4byte index;
+    u32B4 index;
     u64B4 wordPos;
     std::vector<UPoints> points;
 
-    CloudBox(const u32_4byte &index, const u64B4 &_center) : index(index), wordPos(_center)
+    CloudBox(const u32B4 &index, const u64B4 &_center) : index(index), wordPos(_center)
     {
     }
     CloudBox(const u64B4 &_center) : wordPos(_center)
@@ -224,12 +251,12 @@ struct CloudBox
         pcpu_box32 = new struct Voxel32;
         for (std::size_t i = 0; i < points.size(); i++) //
         {
-            u32_4byte u64;
+            u32B4 u64;
             UPoints &ptf = points[i];
             u64.x = std::floor(3.125f * ptf.pos.x);
             u64.y = std::floor(3.125f * ptf.pos.y);
             u64.z = std::floor(3.125f * ptf.pos.z);
-            u32_4byte u32;
+            u32B4 u32;
             u32.x = (ptf.xyz[0] - u64.x * 0.32f) * 100;
             u32.y = (ptf.xyz[1] - u64.y * 0.32f) * 100;
             u32.z = (ptf.xyz[2] - u64.z * 0.32f) * 100;

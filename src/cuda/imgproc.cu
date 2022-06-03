@@ -85,7 +85,7 @@ namespace device
         int blockId = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z; // z blockId
         int pt_grid_x = threadIdx.x;
         int pt_grid_y = threadIdx.y;
-        u32_4byte index = dev_pbox[blockId].index;
+        u32B4 index = dev_pbox[blockId].index;
         u64B4 center = point_buf[blockId].center;
 
         for (int pt_grid_z = 0; pt_grid_z < 32; pt_grid_z++)
@@ -117,7 +117,7 @@ namespace device
         int pt_grid_z = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z; // z blockId
         int pt_grid_x = threadIdx.x;
         int pt_grid_y = threadIdx.y;
-        u32_4byte index = dev_pbox->index;
+        u32B4 index = dev_pbox->index;
         u64B4 center = point_buf->center;
         int volume_idx = pt_grid_z * CUBEVOXELSIZE * CUBEVOXELSIZE + pt_grid_y * CUBEVOXELSIZE + pt_grid_x;
         union voxel &voxel = dev_pbox->pVoxel[volume_idx];
@@ -145,17 +145,42 @@ namespace device
             // color.push_back(cv::Vec3b(voxel.rgb[0], voxel.rgb[1], voxel.rgb[2]));
         }
     }
+    __global__ void update_loacl_index(struct Voxel32 **pboxmap, u64B4 src_center, u64B4 now_center, u32B4 *srcid, u32B4 *nowid, bool *mask)
+    {
+        int blockId = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
+
+        struct Voxel32 *&temp = pboxmap[blockId];
+        mask[blockId] = true;
+        const u32B4 &u32_src = temp->index;
+        uint8_t now_int = temp->index.cnt;
+        u32B4 u32new;
+
+        u64B4 now_local = u32_src + (src_center - now_center);
+        if ((abs(now_local.x) > 126) || (abs(now_local.y) > 126) || (abs(now_local.z) > 126))
+        {
+            mask[blockId] = false; //转换成点云
+            temp->index = u32B4(0);
+            return;
+        }
+        u32new.x = now_local.x, u32new.y = now_local.y, u32new.z = now_local.z;
+        temp->index = u32new;
+        temp->index.cnt = now_int;
+        if (now_int == 0)
+        {
+            mask[blockId] = false; //转换成点云
+        }
+    }
     __global__ void
     cloud2grids(struct Voxel32 *pboxmap, UPoints *ps, size_t len_point)
     {
         int pt_grid_z = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
         union UPoints &up = ps[pt_grid_z];
-        u32_4byte u64;
+        u32B4 u64;
         u64.x = std::floor(3.125f * up.xyz[0]);
         u64.y = std::floor(3.125f * up.xyz[1]);
         u64.z = std::floor(3.125f * up.xyz[2]);
 
-        u32_4byte u32;
+        u32B4 u32;
         u32.x = (up.xyz[0] - u64.x * 0.32f) * 100;
         u32.y = (up.xyz[1] - u64.y * 0.32f) * 100;
         u32.z = (up.xyz[2] - u64.z * 0.32f) * 100;
@@ -180,7 +205,7 @@ namespace device
     }
     __global__ void
     scaleDepth(const PtrStepSz<unsigned short> depth, PtrStep<PosType> scaled, PtrStep<PosType> gcloud,
-               PtrStep<u32_4byte> zin, float *campose, const Intr intr, u64B4 center)
+               PtrStep<u32B4> zin, float *campose, const Intr intr, u64B4 center)
     {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -213,7 +238,7 @@ namespace device
 
         gcloud.ptr(y)[x] = gp; // Dp * 0.0002f; //  / 1000.f; //meters
 
-        u32_4byte vecs;
+        u32B4 vecs;
         int16_t vx = __float2int_rd(gp.x / (float)(VOXELSIZE)); //向下取整 __float2int_rn __float2int_rd rn是求最近的偶数，rz是逼近零，ru是向上舍入[到正无穷]，rd是向下舍入[到负无穷]。  std::floor
         int16_t vy = __float2int_rd(gp.y / (float)(VOXELSIZE)); //向下取整
         int16_t vz = __float2int_rd(gp.z / (float)(VOXELSIZE)); //向下取整
@@ -241,7 +266,7 @@ namespace device
         struct Voxel32 &vdev_pbox = dev_pbox[blockId];
         int pt_grid_x = threadIdx.x;
         int pt_grid_y = threadIdx.y;
-        u32_4byte index = vdev_pbox.index;
+        u32B4 index = vdev_pbox.index;
 
         for (int pt_grid_z = 0; pt_grid_z < 32; pt_grid_z++)
         {
@@ -282,7 +307,7 @@ namespace device
 
         struct Voxel32 &vdev_pbox = dev_pbox[blockId];
 
-        u32_4byte index = vdev_pbox.index;
+        u32B4 index = vdev_pbox.index;
         if (index.cnt != 0)
         {
             return;
@@ -336,7 +361,7 @@ namespace device
         struct Voxel32 &vdev_pbox = dev_pbox[blockId];
         int pt_grid_x = threadIdx.x;
         int pt_grid_y = threadIdx.y;
-        u32_4byte index = vdev_pbox.index;
+        u32B4 index = vdev_pbox.index;
         int8_t asdasd = vdev_pbox.index.cnt;
 
         for (int pt_grid_z = 0; pt_grid_z < 32; pt_grid_z++)
@@ -423,7 +448,7 @@ namespace device
                 cam2base[i] = gpu_kpara->cam2base[i];
         }
         struct Voxel32 *pbox = dev_boxptr[blockId];
-        union u32_4byte u32 = pbox->index;
+        union u32B4 u32 = pbox->index;
         __syncthreads();
         for (int pt_grid_x = 0; pt_grid_x < CUBEVOXELSIZE; pt_grid_x++)
         {
@@ -454,7 +479,7 @@ namespace device
             PosType img_dep = depthScaled.ptr(pt_pix_y)[pt_pix_x]; // meters
 
             // float img_dep = img_depu * 0.001f; //pt->xyz;//
-            if (img_dep.z <= 0 || img_dep.z > 6)
+            if (img_dep.z <= 0.2 || img_dep.z > 6)
                 continue;
             float diff = img_dep.z - pt_cam_z;
             if (diff <= -trunc_margin)

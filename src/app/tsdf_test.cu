@@ -73,7 +73,7 @@ using namespace std;
 //             std::cout << vec << std::endl;
 //             assert(0);
 //         }
-//         u32_4byte u64;
+//         u32B4 u64;
 //         u64.x = vecs[0] - para.center.x; // - 10;
 //         u64.y = vecs[1] - para.center.y; // - para.center.y; // - 10;
 //         u64.z = vecs[2] - para.center.z;
@@ -373,7 +373,7 @@ void renderImage(const Intr &intr, const DeviceArray2D<unsigned short> &depth,
     render_image_kernel<<<grid, block>>>(depth, normals, reproj, image);
     // cudaSafeCall ( cudaGetLastError () );
 
-    // p_int.download(_32buf,sizeof(u32_4byte)*640);
+    // p_int.download(_32buf,sizeof(u32B4)*640);
     // ck(cudaMallocHost((void **)&host_points, sizeof( PosType)*480*640));
     image.download(_32buf, 4 * 640);
     cv::Mat asdsa(480, 640, CV_8UC4, _32buf);
@@ -435,7 +435,7 @@ struct TSDF
         DeviceArray2D<unsigned short> device_depth_src(480, 640);
 
         DeviceArray2D<float4> points_pyr, normals_pyr;
-        DeviceArray2D<u32_4byte> p_int(480, 640);
+        DeviceArray2D<u32B4> p_int(480, 640);
         RGB *host_32buf;
         DeviceArray2D<RGB> imgcuda(480, 640);
         ck(cudaMallocHost((void **)&host_32buf, sizeof(RGB) * 480 * 640));
@@ -453,7 +453,7 @@ struct TSDF
         cudaMalloc((void **)&g_cam, sizeof(float) * 16);
 
         uint32_t *_32buf;
-        ck(cudaMallocHost((void **)&_32buf, sizeof(u32_4byte) * 480 * 640));
+        ck(cudaMallocHost((void **)&_32buf, sizeof(u32B4) * 480 * 640));
 
         // std::cout<<show_cloud<<std::endl;
         // dataset_tum *parser = new dataset(0,-1,1,fs["matpose"]);
@@ -510,7 +510,7 @@ struct TSDF
                 // renderImage(intr, depth_device_img, points_pyr, normals_pyr, imgcuda, host_32buf);
             }
             gocloud.download(host_points, 12 * 640);
-            p_int.download(_32buf, sizeof(u32_4byte) * 640);
+            p_int.download(_32buf, sizeof(u32B4) * 640);
 
             std::set<uint32_t> set32(_32buf, _32buf + 480 * 640);
             // cout<<set32.size()<<endl;
@@ -537,7 +537,7 @@ struct TSDF
                 {
                     host_boxptr[i] = (mm.pboxs)[indexa];
                 }
-                u32_4byte u32;
+                u32B4 u32;
                 u32.u32 = indexa;
                 // u32.type = 0x1;
                 u32.cnt = 0xf;

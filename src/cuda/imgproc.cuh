@@ -20,7 +20,7 @@ namespace device
     void computeDists(const ushort *depth[], ushort *dists[], float2 finv, float2 c);
     __global__ void
     scaleDepth(const PtrStepSz<unsigned short> depth, PtrStep<PosType> scaled, PtrStep<PosType> gcloud,
-               PtrStep<u32_4byte> zin, float *campose, const Intr intr,u64B4 center);
+               PtrStep<u32B4> zin, float *campose, const Intr intr, u64B4 center);
     __host__ void bilateralFilter(const PtrStepSz<unsigned short> &src, const PtrStepSz<unsigned short> &dst, int kernel_size,
                                   float sigma_spatial, float sigma_depth);
     __global__ void Integrate32(float *cam_K,
@@ -48,6 +48,7 @@ namespace device
 
     __global__ void
     extract_kernel(ex_buf *output_base, struct Voxel32 *dev_pbox, exmatcloud_para *para);
+    __global__ void update_loacl_index(struct Voxel32 **pboxmap, u64B4 src_center, u64B4 now_center, u32B4 *srcid, u32B4 *nowid, bool *mask);
 
     //  void cloudToDepth(const Cloud& cloud, Depth& depth);
 

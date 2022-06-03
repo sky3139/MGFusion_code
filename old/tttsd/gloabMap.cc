@@ -24,7 +24,7 @@ void gloabMap::addcube(std::shared_ptr<MyTSDF> &spTsdf)
   // cout << "mapSet" << mapSet.size() << endl;
   for (int i = 0; i < spTsdf->box32s.size(); i++) // for (auto &it : box32s)
   {
-    u32_4byte u324;
+    u32B4 u324;
     // Voxel32 *p=(spTsdf->box32s)[i];
     u324.u32 = spTsdf->box32s[i]->index; //原cube 序号
 
@@ -115,7 +115,7 @@ void gloabMap::Voxel2PointCloud(cv::Mat &color, cv::Mat &cloud)
   //   uint32_t i = it->second->index;
   //   Vec3f tsdfwordpose;
 
-  //   u32_4byte u64;
+  //   u32B4 u64;
   //   u64.u32 = i;
   //   addresstotsdfworld(u64, tsdfwordpose);
   //   // printf("0x%016lx,%d,%d,%d,%d\n", u64.u64, u64.x, u64.y, u64.z,sizeof( u64.u64));

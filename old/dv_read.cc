@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
     Vec4s tsdfwordpose = pos.at<Vec4s>(i, 0);
     Voxel32 *pbox = new struct Voxel32;
     pbox->read("box.bin", i);
-    u32_4byte u32;
+    u32B4 u32;
     u32.byte4[0] = tsdfwordpose[0];
     u32.byte4[1] = tsdfwordpose[1];
     u32.byte4[2] = tsdfwordpose[2];

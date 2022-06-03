@@ -7,7 +7,7 @@ class Timer
 {
 public:
   Timer();
-
+  Timer(std::string msg);
   void Start();
   void Restart();
   void Pause();
@@ -34,10 +34,16 @@ public:
     // printf("microsecond:%ld \n", tv.tv_sec * 1000000 + tv.tv_usec);     //微秒
     return tv.tv_sec * 1000000 + tv.tv_usec;
   }
+  ~Timer()
+  {
+    double dt = ElapsedMicroSeconds() * 0.001;
+    printf("%s:%.2f ms\n", msg.c_str(), dt);
+  }
 
 private:
   bool started_;
   bool paused_;
+  std::string msg;
   std::chrono::high_resolution_clock::time_point start_time_;
   std::chrono::high_resolution_clock::time_point pause_time_;
 };

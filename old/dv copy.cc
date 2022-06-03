@@ -47,7 +47,7 @@
 //     for (auto it = pre_box.begin(); it != pre_box.end(); ++it)
 //     {
 //       uint32_t i = *it;
-//       u32_4byte u32_4;
+//       u32B4 u32_4;
 //       u32_4.u32 = i;
 
  
@@ -173,7 +173,7 @@
 //         // cout << it->index <</ " ";
 //         int i = it->index;
 
-//         u32_4byte u32_4;
+//         u32B4 u32_4;
 //         u32_4.u32 = i;
 //         cv::Vec3f tsdfwordpose;
 //         addresstotsdfworld(u32_4, tsdfwordpose);
@@ -219,7 +219,7 @@
 //   //   // wpoint
 //   //   Vec4s tsdfval = wpoint * 3.125f; // / 0.32;
 
-//   //   u32_4byte u32_4;
+//   //   u32B4 u32_4;
 //   //   // u32_4.byte4[0] = 0xff & (tsdfval[0]);
 //   //   // u32_4.byte4[1] = 0xff & (tsdfval[1]);
 //   //   // u32_4.byte4[2] = 0xff & (tsdfval[2]);

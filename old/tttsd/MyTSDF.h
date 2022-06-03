@@ -24,7 +24,7 @@ union Voxel
   };
 };
 
-union u32_4byte
+union u32B4
 {
   uint32_t u32 = 0x00000000;
   int8_t byte4[4];
@@ -181,7 +181,7 @@ public:
   // db *pnewdb;
   MyTSDF(int a, Vec4s);
   void geicurrbox(int i);
-  void addresstotsdfworld(union u32_4byte &u32_4, cv::Vec3f &tsdfwordpose);
+  void addresstotsdfworld(union u32B4 &u32_4, cv::Vec3f &tsdfwordpose);
 
   // void geicurrbox(int i)
   // {

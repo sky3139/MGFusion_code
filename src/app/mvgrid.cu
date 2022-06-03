@@ -266,7 +266,7 @@ void renderImage(const Intr &intr, const DeviceArray2D<unsigned short> &depth,
     render_image_kernel<<<grid, block>>>(depth, normals, reproj, image);
     // cudaSafeCall ( cudaGetLastError () );
 
-    // p_int.download(_32buf,sizeof(u32_4byte)*640);
+    // p_int.download(_32buf,sizeof(u32B4)*640);
     // ck(cudaMallocHost((void **)&host_points, sizeof( float3)*480*640));
     image.download(_32buf, 4 * 640);
     cv::Mat asdsa(480, 640, CV_8UC4, _32buf);
@@ -325,7 +325,7 @@ struct TSDF
         DeviceArray2D<unsigned short> device_depth_src(480, 640);
 
         DeviceArray2D<float4> points_pyr, normals_pyr;
-        DeviceArray2D<u32_4byte> p_int(480, 640);
+        DeviceArray2D<u32B4> p_int(480, 640);
         RGB *host_32buf;
         DeviceArray2D<RGB> imgcuda(480, 640);
         ck(cudaMallocHost((void **)&host_32buf, sizeof(RGB) * 480 * 640));
@@ -333,7 +333,6 @@ struct TSDF
         Intr intr(parser->cam_K);
         intr.sca = 1.0f / parser->depth_factor;
         intr.print();
-
 
         int mode = 0;
         int save_skip_list_num;
@@ -346,7 +345,7 @@ struct TSDF
         cudaMalloc((void **)&g_cam, sizeof(float) * 16);
 
         uint32_t *_32buf;
-        ck(cudaMallocHost((void **)&_32buf, sizeof(u32_4byte) * 480 * 640));
+        ck(cudaMallocHost((void **)&_32buf, sizeof(u32B4) * 480 * 640));
 
         if (mode == 5)
         {
@@ -482,7 +481,7 @@ struct TSDF
                 // renderImage(intr, depth_device_img, points_pyr, normals_pyr, imgcuda, host_32buf);
             }
             gocloud.download(host_points, 12 * 640); //当前帧的点云
-            p_int.download(_32buf, sizeof(u32_4byte) * 640);
+            p_int.download(_32buf, sizeof(u32B4) * 640);
             std::set<uint32_t> set32(_32buf, _32buf + 480 * 640);
             // // 当前深度图 点云
             // cv::Mat asdp(480 * 640, 1, CV_32FC3, &host_points[0].x);
@@ -505,7 +504,7 @@ struct TSDF
                 {
                     host_boxptr[i] = (mm.pboxs)[indexa];
                 }
-                u32_4byte u32;
+                u32B4 u32;
                 u32.u32 = indexa;
                 // u32.type = 0x1;
                 u32.cnt = 8;
@@ -552,21 +551,14 @@ struct TSDF
             // cudaStreamSynchronize();
 
             // 移除
-            if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 100 == 1)
+            if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 75 == 40)
             {
-                // //     // tm.Start();
-                mm.savenode_cube_(mm.cpu_kpara.center);
-                // //     // // atime[0] = tm.ElapsedMicroSeconds() * 0.001f;
+                u64B4 src_center = mm.cpu_kpara.center;
                 mm.cpu_kpara.center.x = std::floor(parser->m_pose.val[3] * 3.125f);
                 mm.cpu_kpara.center.y = std::floor(parser->m_pose.val[7] * 3.125f);
                 mm.cpu_kpara.center.z = std::floor(parser->m_pose.val[11] * 3.125f);
-                mm.cpu_kpara.center.print();
-                // //     // mm.movenode(mm.cpu_kpara.center);
-                // //     // tm.Start();
-                mm.resetnode();
+                mm.movenode_62(dev_boxptr, src_center, mm.cpu_kpara.center);
             }
-            //     // atime[1] = tm.ElapsedMicroSeconds() * 0.001f;
-
             //     // std::cout<<""<<atime[1]<<","<<atime[0]<<std::endl;
             // }
 
@@ -585,9 +577,9 @@ struct TSDF
             mp_v->setstring(debugtext);
 
             Mat po_int, col_or;
-            mm.mcps.margCpuVoxel32Tocloud(po_int, col_or);
-            if (po_int.rows > 0)
-                mp_v->inset_cloud("curr22", cv::viz::WCloud(po_int, col_or));
+            // mm.mcps.margCpuVoxel32Tocloud(po_int, col_or);
+            // if (po_int.rows > 0)
+            //     mp_v->inset_cloud("curr22", cv::viz::WCloud(po_int, col_or));
             cv::waitKey(1);
             // if (mm.gpu_pbox_use.size() > 500)
             // {

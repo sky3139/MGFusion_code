@@ -75,7 +75,7 @@ void MyTSDF::geicurrbox(int i)
 //   }
 // }
 
-void MyTSDF::addresstotsdfworld(union u32_4byte &u32_4, cv::Vec3f &tsdfwordpose)
+void MyTSDF::addresstotsdfworld(union u32B4 &u32_4, cv::Vec3f &tsdfwordpose)
 {
   static float tsdf_base_xyz[3] = {0, 0, 0};
   tsdfwordpose[0] = u32_4.byte4[0] * 0.32f - tsdf_base_xyz[0];
@@ -88,7 +88,7 @@ void MyTSDF::integrate(float *cam_K, float *cam2base, uint8_t *rgb_im, float *de
   for (auto it = pre_box.begin(); it != pre_box.end(); ++it)
   {
     uint32_t i = *it;
-    u32_4byte u32_4;
+    u32B4 u32_4;
     u32_4.u32 = i;
     Vec3f tsdfwordpose;
 
@@ -220,7 +220,7 @@ void MyTSDF::Voxel2PointCloud(cv::Mat &color, cv::Mat &cloud)
       uint32_t i = it->index;
       Vec3f tsdfwordpose;
 
-      u32_4byte u32_4;
+      u32B4 u32_4;
       u32_4.u32 = i;
       addresstotsdfworld(u32_4, tsdfwordpose);
 
@@ -277,7 +277,7 @@ bool MyTSDF::word2tsdfax(Vec4f &wpoint, Vec4s &tsdfval, gloabMap &gm)
   tsdfval = wpoint * 3.125f; // / 0.32;
   // printf("tsdfval%x,%x,%x\n", tsdfval[0], tsdfval[1], tsdfval[2]);
 
-  u32_4byte u32_4;
+  u32B4 u32_4;
   u32_4.byte4[0] = (tsdfval[0]);
   u32_4.byte4[1] = (tsdfval[1]);
   u32_4.byte4[2] = (tsdfval[2]);
@@ -331,7 +331,7 @@ bool MyTSDF::word2tsdfax(Mat &dep, Vec<float, 16> &po, gloabMap &gm)
     // cout <<src_ct4s << endl;
 
     // Vec4s src_ct = o3434.at<Vec4s>(i, 0);
-    u32_4byte u32_4;
+    u32B4 u32_4;
     u32_4.byte4[0] = (src_ct4s[0]);
     u32_4.byte4[1] = (src_ct4s[1]);
     u32_4.byte4[2] = (src_ct4s[2]);
@@ -363,7 +363,7 @@ void MyTSDF::over(std::shared_ptr<MyTSDF> &mytsdf, cv::Mat &pos)
   // for (int i = 0;  box32s.size()>0; i++) // for (auto &it : box32s)
   // {
   // bo  box32s.pop_back();
-  //   u32_4byte u324;
+  //   u32B4 u324;
   //   u324.u32 = box32s[i]->index; //原cube 序号
   //   Vec4f wp;                    //原cube的世界坐标
   //   wp[0] = (u324.byte4[0] + 1) * 0.32 + m_centerf[0];
@@ -392,7 +392,7 @@ void MyTSDF::over(std::shared_ptr<MyTSDF> &mytsdf, cv::Mat &pos)
   //   //   Vec4s d4s = ct2 * 3.125;
   //   //   // bool ret = currtsdf->word2tsdfax(ct, val);
 
-  //   u32_4byte uew324;
+  //   u32B4 uew324;
   //   uew324.byte4[0] = (int8_t)d4s[0];
   //   uew324.byte4[1] = (int8_t)d4s[1];
   //   uew324.byte4[2] = (int8_t)d4s[2];

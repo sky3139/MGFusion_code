@@ -209,7 +209,7 @@ public:
                 memcpy(ptf.val, (void *)up.xyz, sizeof(float) * 3);
                 memcpy(cob.val, (void *)up.rgb, sizeof(uint8_t) * 3);
 
-                u32_4byte u64;
+                u32B4 u64;
                 cv::Vec3f retf = 3.125f * ptf;
                 // cv::Vec3s rets;
                 u64.x = std::floor(retf[0]);
@@ -224,7 +224,7 @@ public:
                 {
                     boxmap[u64.u32] = new struct Voxel32();
                 }
-                u32_4byte u32;
+                u32B4 u32;
                 u32.x = (ptf[0] - u64.x * 0.32f) * 100;
                 u32.y = (ptf[1] - u64.y * 0.32f) * 100;
                 u32.z = (ptf[2] - u64.z * 0.32f) * 100;
@@ -360,14 +360,14 @@ public:
         //         memcpy(ptf.val, (void *)up.xyz, sizeof(float) * 3);
         //         memcpy(cob.val, (void *)up.rgb, sizeof(uint8_t) * 3);
 
-        //         u32_4byte u64;
+        //         u32B4 u64;
         //         cv::Vec3f retf = 3.125f * ptf;
         //         // cv::Vec3s rets;
         //         u64.x = std::floor(retf[0]);
         //         u64.y = std::floor(retf[1]);
         //         u64.z = std::floor(retf[2]);
 
-        //         u32_4byte u32;
+        //         u32B4 u32;
         //         u32.x = (ptf[0] - u64.x * 0.32f) * 100;
         //         u32.y = (ptf[1] - u64.y * 0.32f) * 100;
         //         u32.z = (ptf[2] - u64.z * 0.32f) * 100;
