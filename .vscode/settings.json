@@ -115,6 +115,7 @@
         "program": "cpp",
         "state": "cpp",
         "stateset": "cpp",
-        "uniform": "cpp"
+        "uniform": "cpp",
+        "valuestack": "cpp"
     }
 }

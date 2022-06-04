@@ -15,15 +15,13 @@ mapmanages::mapmanages()
     // cpu_kpara.rgbdata = new uint8_t[640 * 480 * 3];
     struct Voxel32 srcbox;
     cudaMalloc((void **)&dev_boxpool, sizeof(struct Voxel32) * ALLL_NUM); //申请GPU显存
+    cudaMemset(dev_boxpool, 0, sizeof(struct Voxel32) * ALLL_NUM);
+
     checkCUDA(cudaGetLastError());
     for (int i = 0; i < ALLL_NUM; i++)
     {
-        cudaMemcpy((void *)(&(dev_boxpool[i])), (void *)(&srcbox), sizeof(struct Voxel32), cudaMemcpyHostToDevice);
-        checkCUDA(cudaGetLastError());
         gpu_pbox_free.push(&dev_boxpool[i]);
     }
-
-    checkCUDA(cudaGetLastError());
 }
 
 void mapmanages::exmatcloud_bynum(cv::Mat &points, cv::Mat &color, u64B4 center, struct Voxel32 *gpu_boxpool, int number)
@@ -182,11 +180,12 @@ void mapmanages::movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &src_center, u6
             // cudaMemcpy(&srcbox, gpu_pbox_use[i], sizeof(struct Voxel32), cudaMemcpyDeviceToHost);
             gpu_pbox_use[i] = gpu_pbox_use.back();
             gpu_pbox_use.pop_back();
-            
+
             continue;
         }
         cnt2++;
-        cpu_pbox[srcid[i].u32] = pboxs[nowid[i].u32];
+        // printf("%x ", srcid[i].u32);
+        cpu_pbox[srcid[i].u32 & 0xffffff] = pboxs[nowid[i].u32 & 0xffffff];
     }
     free(pboxs);
     cudaFree(dev_pbox_use);
@@ -210,7 +209,7 @@ void mapmanages::skiplistbox(cv::Mat &_points, cv::Mat &color, u64B4 &center)
 
     for (int i = 0; i < num; i++)
     {
-        pboxs[i]->index.cnt = 0;
+        // pboxs[i]->index.cnt = 0;
         cudaMemcpy((void *)(&(gpu_pbox[i])), (void *)(pboxs[i]), sizeof(struct Voxel32), cudaMemcpyHostToDevice);
         checkCUDA(cudaGetLastError());
         // delete cpu_box[i];

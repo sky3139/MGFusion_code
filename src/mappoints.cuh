@@ -89,7 +89,7 @@ public:
         // std::cout << point_buf->dev_points_num << std::endl;
         // cpu_pbox.tobuff(_points, color, center);
         CloudBox *points = new CloudBox(cpu_pbox.index, center);
-        points->index.cnt = 0;
+        // points->index.cnt = 0;
         // points->index.type = 0;
 
         points->points.resize(point_buf->dev_points_num);

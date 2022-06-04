@@ -507,7 +507,7 @@ struct TSDF
                 u32B4 u32;
                 u32.u32 = indexa;
                 // u32.type = 0x1;
-                u32.cnt = 8;
+                // u32.cnt = 8;
                 ck(cudaMemcpyAsync((void *)&host_boxptr[i]->index, (void *)(&u32), sizeof(uint32_t), cudaMemcpyHostToDevice));
                 i++;
                 if (i >= ACTIVATE_VOXNUM - 2)
@@ -573,13 +573,13 @@ struct TSDF
             // }
             std::string debugtext = cv::format("Frame_id:%d remain box:%ld period:%.4f ms", frame_idx, mm.gpu_pbox_free.size(),
                                                tm.ElapsedMicroSeconds() * 0.001f);
-            debugtext += cv::format(" cloudBoxs:%ld,cpu %ld", mm.mcps.cloudBoxs.size(), mm.gpu_pbox_free.size());
+            debugtext += cv::format(" cloudBoxs:%ld,cpu %ld", mm.mcps.mp_cpuVoxel32.size(), mm.gpu_pbox_free.size());
             mp_v->setstring(debugtext);
 
             Mat po_int, col_or;
-            // mm.mcps.margCpuVoxel32Tocloud(po_int, col_or);
-            // if (po_int.rows > 0)
-            //     mp_v->inset_cloud("curr22", cv::viz::WCloud(po_int, col_or));
+            mm.mcps.margCpuVoxel32Tocloud(po_int, col_or);
+            if (po_int.rows > 0)
+                mp_v->inset_cloud("curr22", cv::viz::WCloud(po_int));//col_or
             cv::waitKey(1);
             // if (mm.gpu_pbox_use.size() > 500)
             // {

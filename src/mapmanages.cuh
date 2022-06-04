@@ -106,7 +106,7 @@ public:
         // // tm.Start();
         for (int i = 0; i < gpu_pbox_use.size(); i++) //转换成全局坐标
         {
-            cpu_pbox_use[i + start_id]->pvoxel32->index.cnt = 10;
+            // cpu_pbox_use[i + start_id]->pvoxel32->index.cnt = 10;
             mcps.mp_cpuVoxel32.push_back(cpu_pbox_use[i + start_id]);
         }
         cudaStreamDestroy(stream);
@@ -261,7 +261,7 @@ public:
 
             LZ4_decompress_safe(pchCompressedInput, (char *)&cpu_pbox, sizeof(struct Voxel32), sizeof(struct Voxel32));
             // de_size
-            cpu_pbox.index.cnt = 0;
+            // cpu_pbox.index.cnt = 0;
 
             // mps.addpoint(cpu_pbox);
             // fin.read((char *)&cpu_pbox,  sizeof( struct Voxel32));

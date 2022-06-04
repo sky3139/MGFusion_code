@@ -131,8 +131,9 @@ union u32B4
         int8_t x;
         int8_t y;
         int8_t z;
-        uint8_t type : 2;
-        uint8_t cnt : 6;
+        uint8_t cnt;
+        // uint8_t type : 2;
+        // uint8_t cnt : 6;
     };
 
     __host__ void print()
@@ -168,10 +169,10 @@ struct Voxel32
     u32B4 index;
     bool tobuff(cv::Mat &points, cv::Mat &color, const u64B4 &center)
     {
-        if (index.cnt > 0)
-            index.cnt--;
-        else
-            return false;
+        // if (index.cnt > 0)
+        //     index.cnt--;
+        // else
+        //     return false;
         for (int8_t pt_grid_z = 0; pt_grid_z < CUBEVOXELSIZE; pt_grid_z++)
         {
             for (int8_t pt_grid_y = 0; pt_grid_y < CUBEVOXELSIZE; pt_grid_y++)
