@@ -56,7 +56,11 @@ public:
     // }
     struct Voxel32 *getidlebox(uint32_t val)
     {
-        assert(gpu_pbox_free.size() != 0);
+        if (gpu_pbox_free.size() == 0)
+            while (1)
+            {
+                /* code */
+            };
         struct Voxel32 *cpu_pbox = nullptr;
         u32B4 u32;
         u32.u32 = val;

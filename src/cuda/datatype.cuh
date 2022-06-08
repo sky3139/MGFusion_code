@@ -62,28 +62,7 @@ enum BOX_TYPE
     GLOAB = 0,
     CURR = 1
 };
-struct u64B4
-{
-    union
-    {
-        uint64_t u64;
-        struct
-        {
-            int16_t x;
-            int16_t y;
-            int16_t z;
-            int16_t _rev;
-        };
-    };
-    u64B4(int16_t x = 0, int16_t y = 0, int16_t z = 0) : x(x), y(y), z(z)
-    {
-        _rev = 0;
-    }
-    __host__ void print()
-    {
-        printf("%d %d %d\n", x, y, z);
-    }
-};
+struct u32B4;
 
 struct ex_buf
 {
@@ -123,17 +102,21 @@ union UPoints
     };
 };
 #define PosType float3
-union u32B4
+struct u64B4;
+struct u32B4
 {
-    uint32_t u32 = 0x00000000;
-    struct
+    union
     {
-        int8_t x;
-        int8_t y;
-        int8_t z;
-        uint8_t cnt;
-        // uint8_t type : 2;
-        // uint8_t cnt : 6;
+        uint32_t u32 = 0x00000000;
+        struct
+        {
+            int8_t x;
+            int8_t y;
+            int8_t z;
+            uint8_t cnt;
+            // uint8_t type : 2;
+            // uint8_t cnt : 6;
+        };
     };
 
     __host__ void print()
@@ -143,24 +126,51 @@ union u32B4
     __device__ __host__ u32B4(uint32_t _u = 0) : u32(_u){};
     __host__ __device__ friend u64B4 operator+(const u32B4 &u32, u64B4 u64);
 };
+struct u64B4
+{
+public:
+    union
+    {
+        uint64_t u64;
+        struct
+        {
+            int16_t x;
+            int16_t y;
+            int16_t z;
+            int16_t _rev;
+        };
+    };
+    __host__ __device__ u64B4(int16_t x = 0, int16_t y = 0, int16_t z = 0) : x(x), y(y), z(z)
+    {
+        _rev = 0;
+    }
+    __host__ __device__ u64B4(u32B4 u32)
+    {
+        x = (u32.x), y = (u32.y), z = (u32.z);
+        _rev = 0;
+    }
+    __host__ void print()
+    {
+        printf("%d %d %d\n", x, y, z);
+    }
+};
 
 // #define MY_COM_OPERA (
-__host__ __device__ inline u64B4 operator+(const u32B4 &u32, u64B4 u64)
-{
-    u64B4 ans;
-    ans.x = u32.x + u64.x;
-    ans.y = u32.y + u64.y;
-    ans.z = u32.z + u64.z;
-    ans._rev = 0;
-    return ans;
-}
-__host__ __device__ inline u64B4 operator-(const u64B4 &u32, u64B4 u64)
+// __host__ __device__ inline u64B4 operator+(const u32B4 &u32, u64B4 u64)
+// {
+//     u64B4 ans;
+//     ans.x = u32.x + u64.x;
+//     ans.y = u32.y + u64.y;
+//     ans.z = u32.z + u64.z;
+//     ans._rev = 0;
+//     return ans;
+// }
+__host__ __device__ inline u64B4 operator-(const u64B4 &u32, const u64B4 &u64)
 {
     u64B4 ans;
     ans.x = u32.x - u64.x;
     ans.y = u32.y - u64.y;
     ans.z = u32.z - u64.z;
-    ans._rev = 0;
     return ans;
 }
 

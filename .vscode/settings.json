@@ -116,6 +116,16 @@
         "state": "cpp",
         "stateset": "cpp",
         "uniform": "cpp",
-        "valuestack": "cpp"
+        "valuestack": "cpp",
+        "tensor": "cpp",
+        "types": "cpp",
+        "block": "cpp",
+        "graphicscostestimator": "cpp",
+        "polytope": "cpp",
+        "texture": "cpp",
+        "valueobject": "cpp",
+        "observer_ptr": "cpp",
+        "ref_ptr": "cpp",
+        "affinity": "cpp"
     }
 }

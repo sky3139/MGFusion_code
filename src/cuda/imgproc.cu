@@ -145,32 +145,40 @@ namespace device
             // color.push_back(cv::Vec3b(voxel.rgb[0], voxel.rgb[1], voxel.rgb[2]));
         }
     }
-    __global__ void update_loacl_index(struct Voxel32 **pboxmap, u64B4 src_center, u64B4 now_center, u32B4 *srcid, u32B4 *nowid, bool *mask)
+    __global__ void update_loacl_index(struct Voxel32 **pboxmap, u64B4 dst, u64B4 now_center, u32B4 *srcid, u32B4 *nowid, bool *mask)
     {
         int blockId = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
 
-        struct Voxel32 *&temp = pboxmap[blockId];
+        struct Voxel32 *temp = pboxmap[blockId];
         mask[blockId] = true;
-        const u32B4 &u32_src = temp->index;
+        const u32B4 u32_src = temp->index;
         srcid[blockId] = temp->index;
-        // uint8_t now_int = temp->index.cnt;
+        uint8_t now_int = temp->index.cnt;
         u32B4 u32new;
+        u64B4 src_lo(u32_src);
+        u64B4 now_local;
 
-        const u64B4 now_local = u32_src + (src_center - now_center);
+        now_local.x = src_lo.x + dst.x;
+        now_local.y = src_lo.y + dst.y;
+        now_local.z = src_lo.z + dst.z;
         if ((abs(now_local.x) > 126) || (abs(now_local.y) > 126) || (abs(now_local.z) > 126))
         {
             mask[blockId] = false; //转换成点云
             // temp->index = u32B4(0);
+            nowid[blockId].u32 = -1;
+            srcid[blockId].u32 = -1;
             return;
         }
         u32new.x = now_local.x, u32new.y = now_local.y, u32new.z = now_local.z;
         temp->index = u32new;
-        nowid[blockId]= temp->index;
+        // if (u32new.u32 == 0)
+        // printf("u32_src %x+%lx-%lx=%lx %lx\n", u32new.u32, dst.u64, src_lo.u64, now_local.u64, now_local.u64);
+        nowid[blockId] = u32new;
         // temp->index.cnt = now_int;
-        // if (now_int == 0)
-        // {
-        //     mask[blockId] = false; //转换成点云
-        // }
+        if (now_int == 0)
+        {
+            mask[blockId] = false; //转换成点云
+        }
     }
     __global__ void
     cloud2grids(struct Voxel32 *pboxmap, UPoints *ps, size_t len_point)
@@ -223,11 +231,11 @@ namespace device
         scaled.ptr(y)[x] = xp; // Dp * 0.0002f; //  / 1000.f; //meters
 
         PosType gp;
-        __shared__ float cam[16];
+        __shared__ float cam[12];
 
         if (0 == threadIdx.x && threadIdx.y == 0)
         {
-            for (int i = 0; i < 16; i++)
+            for (int i = 0; i < 12; i++)
             {
                 cam[i] = campose[i];
             }
@@ -364,7 +372,7 @@ namespace device
         int pt_grid_x = threadIdx.x;
         int pt_grid_y = threadIdx.y;
         u32B4 index = vdev_pbox.index;
-        // int8_t asdasd = vdev_pbox.index.cnt;
+        int8_t indexcnt = vdev_pbox.index.cnt;
 
         for (int pt_grid_z = 0; pt_grid_z < 32; pt_grid_z++)
         {
@@ -390,27 +398,27 @@ namespace device
                 // pos.rgb[1] = 255;//index.x;//voxel.rgb[1];
                 // pos.rgb[2] = 255;//index.x;//voxel.rgb[2];
                 //    "     }
-            //     else if (vdev_pbox.index.cnt > 7)
-            //     {
-            //         _color.x = 255; // voxel.rgb[0];
-            //         _color.y = 0;   // index.x;//voxel.rgb[1];
-            //         _color.z = 0;   // index.x;//voxel.rgb[2];
-            //     }
-            //     else // if (index.type == 2)
-            //     {
-            //         _color.x = 0;   // voxel.rgb[0];
-            //         _color.y = 255; // index.x;//voxel.rgb[1];
-            //         _color.z = 0;   // index.x;//voxel.rgb[2];
-            //     }
+                //     else if (vdev_pbox.index.cnt > 7)
+                //     {
+                //         _color.x = 255; // voxel.rgb[0];
+                //         _color.y = 0;   // index.x;//voxel.rgb[1];
+                //         _color.z = 0;   // index.x;//voxel.rgb[2];
+                //     }
+                //     else // if (index.type == 2)
+                //     {
+                //         _color.x = 0;   // voxel.rgb[0];
+                //         _color.y = 255; // index.x;//voxel.rgb[1];
+                //         _color.z = 0;   // index.x;//voxel.rgb[2];
+                //     }
             }
         }
-        // if (asdasd > 0 && pt_grid_x == 0 && pt_grid_y == 0)
-        // {
-        //     //         if (asdasd != 0)
-        //     // printf("%d\n", asdasd);
-        //     vdev_pbox.index.cnt--;
-        //     // printf("aaaaaaa %d\n",vdev_pbox.index.cnt);//
-        // }
+        if (indexcnt > 0 && pt_grid_x == 0 && pt_grid_y == 0)
+        {
+            //         if (asdasd != 0)
+            // printf("%d\n", asdasd);
+            vdev_pbox.index.cnt--;
+            // printf("aaaaaaa %d\n",vdev_pbox.index.cnt);//
+        }
     }
 
     // __global__ void
@@ -450,7 +458,7 @@ namespace device
                 cam2base[i] = gpu_kpara->cam2base[i];
         }
         struct Voxel32 *pbox = dev_boxptr[blockId];
-        union u32B4 u32 = pbox->index;
+        struct u32B4 u32 = pbox->index;
         __syncthreads();
         for (int pt_grid_x = 0; pt_grid_x < CUBEVOXELSIZE; pt_grid_x++)
         {

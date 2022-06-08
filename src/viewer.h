@@ -68,6 +68,7 @@ public:
         window->showWidget("wp", wp,cv::Affine3f(pose.val));
 
         window->showWidget("wtraj", wtraj);
+        // window->setViewerPose(cv::Affine3f(pose.val));
         // m_cond.notify_all();
     }
 

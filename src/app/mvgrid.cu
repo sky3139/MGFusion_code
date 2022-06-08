@@ -166,62 +166,7 @@ __global__ void render_image_kernel(const PtrStep<ushort> depth, const PtrStep<f
     out.w = 0;
     dst.ptr(y)[x] = out;
 }
-__global__ void render_image_kernel(const PtrStep<Point> points, const PtrStep<Normal> normals,
-                                    const Reprojector reproj, float3 light_pose, PtrStepSz<uchar4> dst)
-{
-    // int x = threadIdx.x + blockIdx.x * blockDim.x;
-    // int y = threadIdx.y + blockIdx.y * blockDim.y;
 
-    // if (x >= dst.cols || y >= dst.rows)
-    //     return;
-
-    // float3 color;
-
-    // float3 p = tr(points.ptr(y)[x]);
-    // light_pose=make_float3(0,0,0);
-    // if (isnan(p.x))
-    // {
-    //     const float3 bgr1 = make_float3(4.f/255.f, 2.f/255.f, 2.f/255.f);
-    //     const float3 bgr2 = make_float3(236.f/255.f, 120.f/255.f, 120.f/255.f);
-
-    //     float w = static_cast<float>(y) / dst.rows;
-    //     color = bgr1 * (1 - w) + bgr2 * w;
-    // }
-    // else
-    // {
-    //     float3 P = p;
-
-    //           float4 v4=normals.ptr(y)[x];
-
-    //     float3 N = make_float3(v4.x, v4.y, v4.z);
-
-    //     const float Ka = 0.3f;  //ambient coeff
-    //     const float Kd = 0.5f;  //diffuse coeff
-    //     const float Ks = 0.2f;  //specular coeff
-    //     const float n = 20.f;  //specular power
-
-    //     const float Ax = 1.f;   //ambient color,  can be RGB
-    //     const float Dx = 1.f;   //diffuse color,  can be RGB
-    //     const float Sx = 1.f;   //specular color, can be RGB
-    //     const float Lx = 1.f;   //light color
-
-    //     //Ix = Ax*Ka*Dx + Att*Lx [Kd*Dx*(N dot L) + Ks*Sx*(R dot V)^n]
-
-    //     float3 L = normalized(light_pose - P);
-    //     float3 V = normalized(make_float3(0.f, 0.f, 0.f) - P);
-    //     float3 R = normalized(2 * N * dot(N, L) - L);
-
-    //     float Ix = Ax*Ka*Dx + Lx * Kd * Dx * fmax(0.f, dot(N, L)) + Lx * Ks * Sx * __powf(fmax(0.f, dot(R, V)), n);
-    //     color = make_float3(Ix, Ix, Ix);
-    // }
-
-    // uchar4 out;
-    // out.x = static_cast<unsigned char>(__saturatef(color.x) * 255.f);
-    // out.y = static_cast<unsigned char>(__saturatef(color.y) * 255.f);
-    // out.z = static_cast<unsigned char>(__saturatef(color.z) * 255.f);
-    // out.w = 0;
-    // dst.ptr(y)[x]= out;
-}
 void bilateralFilter2(const DeviceArray2D<unsigned short> &src, const DeviceArray2D<unsigned short> &dst, int kernel_size,
                       float sigma_spatial, float sigma_depth)
 {
@@ -237,10 +182,7 @@ void bilateralFilter2(const DeviceArray2D<unsigned short> &src, const DeviceArra
 
     // points_normals_kernel<<<grid, block>>>(reproj, depth, points, normals);
     // ck ( cudaGetLastError () );
-
     // dim3 block (32, 8);
-
-    // cudaSafeCall( cudaFuncSetCacheConfig (bilateral_kernel, cudaFuncCachePreferL1) );
     device::bilateral_kernel<<<grid, block>>>(src, dst, kernel_size, 0.5f / (sigma_spatial * sigma_spatial), 0.5f / (sigma_depth * sigma_depth));
     ck(cudaGetLastError());
 };
@@ -465,6 +407,7 @@ struct TSDF
                 // cv::Affine3f affpose(cam_pose);
                 break;
             }
+            tm.Start();
             memcpy(mm.cpu_kpara.dev_rgbdata, parser->rgb_.data, parser->rgb_.rows * parser->rgb_.cols * 3);                          //上传彩色图像到GPU
             device_depth_src.upload(parser->depth_src.data, parser->depth_src.step, parser->depth_src.rows, parser->depth_src.cols); //上传深度图
             bilateralFilter2(device_depth_src, depth_device_img, 7, 4.5f, 0.04f);                                                    //双边滤波
@@ -500,14 +443,14 @@ struct TSDF
                     host_boxptr[i] = mm.getidlebox(indexa);
                     (mm.pboxs)[indexa] = host_boxptr[i];
                 }
-                else
+                else //已经重建过
                 {
                     host_boxptr[i] = (mm.pboxs)[indexa];
                 }
                 u32B4 u32;
                 u32.u32 = indexa;
                 // u32.type = 0x1;
-                // u32.cnt = 8;
+                u32.cnt = 8;
                 ck(cudaMemcpyAsync((void *)&host_boxptr[i]->index, (void *)(&u32), sizeof(uint32_t), cudaMemcpyHostToDevice));
                 i++;
                 if (i >= ACTIVATE_VOXNUM - 2)
@@ -551,13 +494,27 @@ struct TSDF
             // cudaStreamSynchronize();
 
             // 移除
-            if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 75 == 40)
+            if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 50 == 30)
             {
+
+                // mm.exmatcloud(mm.cpu_kpara.center);
+                if (mm.curr_point.rows > 0)
+                    mp_v->inset_cloud(cv::format("curr1%d", frame_idx), cv::viz::WCloud(mm.curr_point, mm.curr_color));
+
                 u64B4 src_center = mm.cpu_kpara.center;
                 mm.cpu_kpara.center.x = std::floor(parser->m_pose.val[3] * 3.125f);
                 mm.cpu_kpara.center.y = std::floor(parser->m_pose.val[7] * 3.125f);
                 mm.cpu_kpara.center.z = std::floor(parser->m_pose.val[11] * 3.125f);
-                mm.movenode_62(dev_boxptr, src_center, mm.cpu_kpara.center);
+                u64B4 DS_N = src_center - mm.cpu_kpara.center;
+                src_center.print();
+                mm.cpu_kpara.center.print();
+                DS_N.print();
+                mm.movenode_62(dev_boxptr, DS_N, mm.cpu_kpara.center);
+                // mm.exmatcloud(mm.cpu_kpara.center);
+                // if (mm.curr_point.rows > 0)
+                //     mp_v->inset_cloud(cv::format("cu22%d", frame_idx), cv::viz::WCloud(mm.curr_point));//, mm.curr_color
+
+                mm.resetnode();
             }
             //     // std::cout<<""<<atime[1]<<","<<atime[0]<<std::endl;
             // }
@@ -575,12 +532,13 @@ struct TSDF
                                                tm.ElapsedMicroSeconds() * 0.001f);
             debugtext += cv::format(" cloudBoxs:%ld,cpu %ld", mm.mcps.mp_cpuVoxel32.size(), mm.gpu_pbox_free.size());
             mp_v->setstring(debugtext);
-
-            Mat po_int, col_or;
-            mm.mcps.margCpuVoxel32Tocloud(po_int, col_or);
-            if (po_int.rows > 0)
-                mp_v->inset_cloud("curr22", cv::viz::WCloud(po_int));//col_or
-            cv::waitKey(1);
+            mm.save_tsdf_mode_grids("ab");
+            assert(0);
+            // Mat po_int, col_or;
+            // mm.mcps.margCpuVoxel32Tocloud(po_int, col_or);
+            // if (po_int.rows > 0)
+            //     mp_v->inset_cloud("curr22", cv::viz::WCloud(po_int)); // col_or
+            // cv::waitKey(1);
             // if (mm.gpu_pbox_use.size() > 500)
             // {
 

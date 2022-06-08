@@ -12,7 +12,6 @@ mapmanages::mapmanages()
     pskipList = new SkipList<uint64_t, struct Voxel32 *>(6);
     // pboxs =  std::vector<struct Voxel32 *>(CURR_BOX_NUM, NULL);
     pboxs = (struct Voxel32 **)calloc(CURR_BOX_NUM, sizeof(struct Voxel32 *));
-    // cpu_kpara.rgbdata = new uint8_t[640 * 480 * 3];
     struct Voxel32 srcbox;
     cudaMalloc((void **)&dev_boxpool, sizeof(struct Voxel32) * ALLL_NUM); //申请GPU显存
     cudaMemset(dev_boxpool, 0, sizeof(struct Voxel32) * ALLL_NUM);
@@ -149,7 +148,7 @@ void mapmanages::exmatcloud(u64B4 center)
         exmatcloud_bynum(curr_point, curr_color, center, dev_boxpool, ALLL_NUM);
     }
 }
-void mapmanages::movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &src_center, u64B4 &now_center)
+void mapmanages::movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &dst, u64B4 &now_center)
 {
     Timer t("movenode_62");
     struct Voxel32 srcbox;
@@ -167,12 +166,12 @@ void mapmanages::movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &src_center, u6
     cudaMallocManaged(&mask, sizeof(bool) * number);
     ck(cudaGetLastError());
     dim3 grid(number, 1, 1), block(1, 1, 1);
-    device::update_loacl_index<<<grid, block>>>(dev_pbox_use, src_center, now_center, srcid, nowid, mask);
+    device::update_loacl_index<<<grid, block>>>(dev_pbox_use, dst, now_center, srcid, nowid, mask);
     int cnt = 0, cnt2 = 0;
     ck(cudaDeviceSynchronize());
     for (int i = 0; i < number; i++)
     {
-        if (mask[i] == false) //该导出
+        // if (mask[i] == false) //该导出
         {
             gpu_pbox_free.push(gpu_pbox_use[i]);
             cnt++;
@@ -184,7 +183,8 @@ void mapmanages::movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &src_center, u6
             continue;
         }
         cnt2++;
-        // printf("%x ", srcid[i].u32);
+        if (srcid[i].u32 == 0)
+            printf("%x ", srcid[i].u32);
         cpu_pbox[srcid[i].u32 & 0xffffff] = pboxs[nowid[i].u32 & 0xffffff];
     }
     free(pboxs);
@@ -193,7 +193,7 @@ void mapmanages::movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &src_center, u6
     cudaFree(nowid);
     cudaFree(mask);
     pboxs = cpu_pbox;
-    std::cout << number << "/" << cnt << " " << cnt2 << std::endl;
+    std::cout << "sum:" << number << " export:" << cnt << " change:" << cnt2 << std::endl;
     // std::vector<struct Voxel32 *>().swap(gpu_pbox_use);
     // std::cout << "size=" << gpu_pbox_use.size() << " " << 0 << std::endl;
 }
