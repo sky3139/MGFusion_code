@@ -135,7 +135,7 @@ struct Patch
 {
     T *devPtr;
     size_t pitch = 0;
-    size_t rows, cols;
+    int rows, cols;
     Patch()
     {
     }
@@ -145,15 +145,12 @@ struct Patch
         ck(cudaMemset2D(devPtr, pitch, 0, sizeof(T) * cols, rows));
         // std::cout << pitch << " " << sizeof(T) * cols << std::endl;
     }
-    void creat(const int rows, const int cols)
+    void create(const int rows, const int cols)
     {
-        if (this->rows != rows)
-        {
-            this->rows = rows;
-            this->cols = cols;
-            ck(cudaMallocPitch((void **)&devPtr, &pitch, cols * sizeof(T), rows));
-            ck(cudaMemset2D(devPtr, pitch, 0, sizeof(T) * cols, rows));
-        }
+        this->rows = rows;
+        this->cols = cols;
+        ck(cudaMallocPitch((void **)&devPtr, &pitch, cols * sizeof(T), rows));
+        ck(cudaMemset2D(devPtr, pitch, 0, sizeof(T) * cols, rows));
     }
     //拷贝构造函数
     __host__ __device__ Patch(const Patch &lth)
@@ -164,7 +161,7 @@ struct Patch
         this->cols = lth.cols;
     }
 
-    ~Patch()
+   __device__ __host__ ~Patch()
     {
         // cudaFree(devPtr);
     }
@@ -184,11 +181,15 @@ struct Patch
         // }
         ck(cudaMemcpy2D((void *)host_ptr_arg, host_step_arg, devPtr, pitch, sizeof(T) * cols, rows, cudaMemcpyDeviceToHost));
     }
-    __device__ inline T &operator()(size_t rows, size_t cols)
+    __device__ inline T &operator()(int rows, int cols)
     {
         return devPtr[rows * pitch / sizeof(T) + cols];
     }
-    __device__ inline T *get(size_t rows, size_t cols)
+   const    __device__ inline T &operator()(int rows, int cols) const
+    {
+        return devPtr[rows * pitch / sizeof(T) + cols];
+    }
+    __device__ inline T *get(int rows, int cols)
     {
         // if (rows < pitch)
         //     return mat[x];
@@ -200,6 +201,7 @@ struct Patch
         printf("pitch=%ld rows=%ld cols=%ld\n", pitch, rows, cols);
     }
 };
+
 
 template <class T>
 struct CUVector
@@ -258,6 +260,7 @@ struct CUVector
     {
         return devPtr[len];
     }
+ 
     // __device__ inline T *get(size_t rows, size_t cols)
     // {
     //     // if (rows < pitch)

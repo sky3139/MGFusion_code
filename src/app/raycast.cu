@@ -62,7 +62,7 @@ struct MVhash
 
         return g_hashmap[_pos.u32 & 0xffffff];
     }
-    __device__ union voxel *word2getvol(float3 pos, u32B4 &uid, u32B4 &_pos2)
+    __device__ union voxel *word2getvol(float3 pos, u32B4 &uid, u32B4 &_pos2, float &tsdf)
     {
         u32B4 _pos;
         _pos.x = __float2int_rd(pos.x * 3.125f);
@@ -76,7 +76,6 @@ struct MVhash
         _pos2.x = (pos.x - _pos.x * 0.32f) * 100;
         _pos2.y = (pos.y - _pos.y * 0.32f) * 100;
         _pos2.z = (pos.z - _pos.z * 0.32f) * 100;
-
         // printf("%d,%d,%d\n", _pos2.x, _pos2.y, _pos2.z);
         return &pv->pVoxel[_pos2.x + _pos2.y * 32 + _pos2.z * 32 * 32];
     }
@@ -86,27 +85,26 @@ __global__ void ker(struct MVhash mhash, CUVector<float3> *out, CUVector<uchar3>
 {
     int x = threadIdx.x;
     int y = blockIdx.x;
-
+    float3 pos; // = make_float3(x * 0.01 - 1, y * 0.01 - 1, z * 0.01 - 1);
+    pos.x = (x - intr.cx) / intr.fx - 1;
+    pos.y = (y - intr.cy) / intr.fy;
     // printf("a%ld\n", val);
     for (int z = 0; z < 100; z++)
     {
-        float3 pos = make_float3(x * 0.01 - 1, y * 0.01 - 1, z * 0.01 - 1);
-        // pos.x = (x - intr.cx) / intr.fx;
-        // pos.y = (y - intr.cy) / intr.fy;
         // printf("%f\n",(x - intr.cx) / intr.fx);
         pos.z = z * 0.01;
-
-        //
-
         PVOXEL ret = mhash.word2get(pos);
         u32B4 uid, _pos2;
-        auto pv = mhash.word2getvol(pos, uid, _pos2);
+        float tsdf;
+        auto pv = mhash.word2getvol(pos, uid, _pos2, tsdf);
         if (pv != 0)
         {
             if (pv->weight > 0.2 && fabs(pv->tsdf) < 0.2)
             {
                 unsigned int val = atomicInc(&out->cnt, 0xffffff);
-                (*out)[val] =pos;// make_float3(uid.x * 0.32 + _pos2.x * 0.01, uid.y * 0.32 + _pos2.y * 0.01, uid.z * 0.32 + _pos2.z * 0.01);
+                (*out)[val] = pos; // make_float3(uid.x * 0.32 + _pos2.x * 0.01, uid.y * 0.32 + _pos2.y * 0.01, uid.z * 0.32 + _pos2.z * 0.01);
+                (*rgb)[val] = pv->color;
+                printf("%f %f %f\n", pos.x, pos.y, pos.z);
             }
 
             // (*rgb)[val] = make_uchar3(x, y, z);

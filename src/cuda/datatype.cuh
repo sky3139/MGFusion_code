@@ -85,7 +85,11 @@ union voxel
         float tsdf;
         //  float weight;
         uint8_t weight;
-        uint8_t rgb[3];
+        union
+        {
+            uchar3 color;
+            uint8_t rgb[3];
+        };
     };
 };
 union UPoints
