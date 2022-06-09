@@ -385,6 +385,7 @@ struct TSDF
             }
         }
         // bool tf = false;
+        raycast ray;
         for (int frame_idx = 0; frame_idx < first_frame_idx + (int)num_frames; frame_idx += 1)
         {
             // std::cout << "frame_idx:" << frame_idx << std::endl;
@@ -415,11 +416,11 @@ struct TSDF
             memcpy(mm.cpu_kpara.cam2base, &parser->m_pose.val[0], 4 * 4 * sizeof(float));                                            //上传位姿
             ck(cudaMemcpy((void *)g_cam, (void *)(&parser->m_pose.val[0]), sizeof(float) * 16, cudaMemcpyHostToDevice));             //上传位姿
 
-            dim3 block_scale(32, 8);
+            dim3 block_scale(32, 32);
             dim3 grid_scale(divUp(parser->depth_src.cols, block_scale.x), divUp(parser->depth_src.rows, block_scale.y));
             // depthScaled.download(pnormal,sizeof(float3)*640);
             device::scaleDepth<<<grid_scale, block_scale>>>(depth_device_img, depthScaled, gocloud, p_int, g_cam, intr, mm.cpu_kpara.center); //深度图预处理
-            checkCUDA(cudaGetLastError());
+            ck(cudaGetLastError());
             {
                 // computePointNormals(intr, depth_device_img, points_pyr, normals_pyr);
                 // renderImage(intr, depth_device_img, points_pyr, normals_pyr, imgcuda, host_32buf);
@@ -534,9 +535,8 @@ struct TSDF
             debugtext += cv::format(" cloudBoxs:%ld,cpu %ld", mm.mcps.mp_cpuVoxel32.size(), mm.gpu_pbox_free.size());
             mp_v->setstring(debugtext);
 
-            cv::Mat m1, m2, m3;
 
-            mgraycast_test(m1, m2, m3, intr.cam, mm.pboxs, mp_v->getpose());
+            ray.mgraycast_test(intr.cam,dev_boxptr, mp_v->getpose());
             // mm.save_tsdf_mode_grids("ab");
             // assert(0);
             // Mat po_int, col_or;

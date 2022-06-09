@@ -34,10 +34,14 @@ cuda_add_library(tool  ${TOOL_SRCS})
 target_link_libraries(tool ${OpenCV_LIBS})
 
 CUDA_ADD_EXECUTABLE(mvgrid src/app/mvgrid.cu src/app/ratcast.cu ${CURRENT_HEADERS} ${CURRENT_SOURCES})
-target_link_libraries (mvgrid ${OpenCV_LIBS} tool lz4 )
+target_link_libraries (mvgrid ${OpenCV_LIBS} tool  )
 
-# CUDA_ADD_EXECUTABLE(raycast src/app/raycast.cu ${CURRENT_HEADERS} ${CURRENT_SOURCES})
-# target_link_libraries (raycast ${OpenCV_LIBS} tool lz4 )
+CUDA_ADD_EXECUTABLE(raycast src/app/raycast.cu ${CURRENT_HEADERS} ${CURRENT_SOURCES})
+target_link_libraries (raycast ${OpenCV_LIBS} tool  )
+
+
+CUDA_ADD_EXECUTABLE(mgraycast src/app/mgraycast.cu ${CURRENT_HEADERS} ${CURRENT_SOURCES})
+target_link_libraries (mgraycast ${OpenCV_LIBS} tool  )
 # CUDA_ADD_EXECUTABLE(rnew src/app/main1.cu ${CURRENT_HEADERS} ${CURRENT_SOURCES})
 # target_link_libraries (rnew ${OpenCV_LIBS} tool  )
 

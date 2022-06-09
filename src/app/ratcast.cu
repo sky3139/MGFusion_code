@@ -5,7 +5,6 @@
 #include "main.hpp"
 #include <opencv2/viz/vizcore.hpp>
 
-
 #pragma pack(push, 1)
 
 #define PosType float3
@@ -20,7 +19,7 @@
 
 typedef float4 Point;
 typedef float4 Normal;
-
+typedef uchar4 uchar4;
 #pragma pack(pop)
 
 #define COLS480 480
@@ -120,13 +119,14 @@ namespace device
             upos2.z = z % 32;
             return pv->pVoxel[upos2.z * 32 * 32 + 32 * upos2.y + upos2.x].tsdf;
         }
-        __device__ inline float get(float3 p) const
+        __device__  float get(float3 p) const //inline
         {
             u32B4 upos;
             upos.x = __float2int_rd(p.x * 3.125f);
             upos.y = __float2int_rd(p.y * 3.125f);
             upos.z = __float2int_rd(p.z * 3.125f);
-            PVOXEL pv = g_hashmap[upos.u32 & 0xffffff];
+            upos.cnt = 0;
+            PVOXEL pv = g_hashmap[upos.u32 & 0xffffff]; //
             if (pv == 0)
             {
                 return 0.0f;
@@ -135,7 +135,13 @@ namespace device
             upos2.x = __float2int_rd(p.x * 100) % 32;
             upos2.y = __float2int_rd(p.y * 100) % 32;
             upos2.z = __float2int_rd(p.z * 100) % 32;
-            return pv->pVoxel[upos2.z * 32 * 32 + 32 * upos2.y + upos2.x].tsdf;
+            if (upos2.z < 0 || upos2.y < 0 || upos2.z < 0)
+                return 1.0f;
+            if (upos2.z >= 32 || upos2.y >= 32 || upos2.z >= 32)
+                return 1.0f;
+            uint16_t index = upos2.z * 32 * 32 + 32 * upos2.y + upos2.x;
+            printf("%d \n",index);
+            return pv->pVoxel[index].tsdf;
         }
         // __device__ inline const elem_type *operator()(int x, int y, int z) const {}
         // __device__ inline elem_type *beg(int x, int y) const {}
@@ -244,30 +250,30 @@ namespace device
                 if (tsdf_curr < 0.f && tsdf_next > 0.f)
                     break;
 
-                // if (tsdf_curr > 0.f && tsdf_next < 0.f)
-                // {
+                if (tsdf_curr > 0.f && tsdf_next < 0.f)
+                {
 
-                points(y, x) = make_float4(next.x, next.y, next.z, 0); // make_float4(normal.x, normal.y, normal.z, 0.f);
-                //     // points(y, x) = make_float4(vertex.x, vertex.y, vertex.z, 0.f);
-                //     // float Ft = volume.interpolate(curr);
-                //     // float Ftdt = volume.interpolate(next);
+                    // points(y, x) = make_float4(next.x, next.y, next.z, 0); // make_float4(normal.x, normal.y, normal.z, 0.f);
+                    // points(y, x) = make_float4(vertex.x, vertex.y, vertex.z, 0.f);
+                    float Ft = volume.interpolate(curr);
+                    float Ftdt = volume.interpolate(next);
 
-                //     // float Ts = tcurr - __fdividef(time_step * Ft, Ftdt - Ft);
-                //     // // printf("%f %f", Ft, Ts);
-                //     // float3 vertex = ray_org + ray_dir * Ts;
-                //     // float3 normal = compute_normal(vertex);
+                    float Ts = tcurr - __fdividef(time_step * Ft, Ftdt - Ft);
+                    // printf("%f %f", Ft, Ts);
+                    float3 vertex = ray_org + ray_dir * Ts;
+                    float3 normal = compute_normal(vertex);
 
-                //     // if (!isnan(normal.x * normal.y * normal.z))
-                //     // {
-                //     //     normal = Rinv * normal;
-                //     //     vertex = Rinv * (vertex - aff.t);
+                    if (!isnan(normal.x * normal.y * normal.z))
+                    {
+                        normal = Rinv * normal;
+                        vertex = Rinv * (vertex - aff.t);
 
-                //     //     normals(y, x) = make_float4(normal.x, normal.y, normal.z, 0.f);
-                //     //     points(y, x) = make_float4(vertex.x, vertex.y, vertex.z, 0.f);
-                //     // }
+                        normals(y, x) = make_float4(normal.x, normal.y, normal.z, 0.f);
+                        points(y, x) = make_float4(vertex.x, vertex.y, vertex.z, 0.f);
+                    }
 
-                //     // break;
-                // }
+                    break;
+                }
             } /* for (;;) */
         }
 
@@ -303,7 +309,7 @@ namespace device
 // }
 
 __global__ void render_image_kernel(const Patch<float4> points, const Patch<float4> normals,
-                                    const Intr reproj, const float3 light_pose, Patch<RGB> dst)
+                                    const float3 light_pose, Patch<uchar4> dst)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -333,9 +339,9 @@ __global__ void render_image_kernel(const Patch<float4> points, const Patch<floa
         const float Ks = 0.2f; // specular coeff
         const float n = 20.f;  // specular power
 
-        const float Ax = 1.f; // ambient color,  can be RGB
-        const float Dx = 1.f; // diffuse color,  can be RGB
-        const float Sx = 1.f; // specular color, can be RGB
+        const float Ax = 1.f; // ambient color,  can be uchar4
+        const float Dx = 1.f; // diffuse color,  can be uchar4
+        const float Sx = 1.f; // specular color, can be uchar4
         const float Lx = 1.f; // light color
 
         // Ix = Ax*Ka*Dx + Att*Lx [Kd*Dx*(N dot L) + Ks*Sx*(R dot V)^n]
@@ -348,7 +354,7 @@ __global__ void render_image_kernel(const Patch<float4> points, const Patch<floa
         color = make_float3(Ix, Ix, Ix);
     }
 
-    RGB out;
+    uchar4 out;
     out.x = static_cast<unsigned char>(__saturatef(color.x) * 255.f);
     out.y = static_cast<unsigned char>(__saturatef(color.y) * 255.f);
     out.z = static_cast<unsigned char>(__saturatef(color.z) * 255.f);
@@ -429,6 +435,9 @@ raycast::raycast()
     points.create(COLS480, ROWS640);
     norm.create(COLS480, ROWS640);
     dst.create(COLS480, ROWS640);
+
+    raycastimg.create(COLS480, ROWS640, CV_8UC4);
+    point_.create(COLS480, ROWS640, CV_32FC4);
 }
 raycast::~raycast()
 {
@@ -436,7 +445,7 @@ raycast::~raycast()
     points.release();
     norm.release();
 }
-int raycast::mgraycast_test(cv::Mat &raycastimg, cv::Mat &point_, cv::Mat &normal_img, float4 cam, PVOXEL *&g_hashmap, cv::Affine3f camera_pose)
+int raycast::mgraycast_test(float4 cam, PVOXEL *&g_hashmap, cv::Affine3f camera_pose)
 {
 
     struct Voxel32 pboxs;
@@ -451,8 +460,6 @@ int raycast::mgraycast_test(cv::Mat &raycastimg, cv::Mat &point_, cv::Mat &norma
     float raycaster_step_factor = 0.01;
 
     float gradient_delta_factor = 0.01;
-    Patch<POINT> points, norm;
-    Patch<RGB> dst;
 
     // cv::Affine3f pose = cv::Affine3f().translate(cv::Vec3f(-5.0 / 2, -5.0 / 2, -5.0 / 2));
     cv::Affine3f pose = cv::Affine3f::Identity(); //.translate(cv::Vec3f(-5.0 / 2, -5.0 / 2, -5.0 / 2));
@@ -478,20 +485,18 @@ int raycast::mgraycast_test(cv::Mat &raycastimg, cv::Mat &point_, cv::Mat &norma
     ck(cudaGetLastError());
 
     float3 lp = make_float3(0, 0, 0);
-    render_image_kernel<<<grid, block>>>(points, norm, intr, lp, dst);
+    render_image_kernel<<<grid, block>>>(points, norm, lp, dst);
     ck(cudaDeviceSynchronize());
     ck(cudaGetLastError());
 
-    raycastimg.create(COLS480, ROWS640, CV_8UC4);
-    dst.download(raycastimg.ptr<RGB>(), raycastimg.step);
+    dst.download(raycastimg.ptr<uchar4>(), raycastimg.step);
     ck(cudaGetLastError());
 
-    point_.create(COLS480, ROWS640, CV_32FC4);
     cv::imshow("raycastimg", raycastimg);
-    cv::waitKey(0);
+    cv::waitKey(10);
     points.download(point_.ptr<float4>(), point_.step);
     ck(cudaGetLastError());
-    std::cout << "a" << std::endl;
+    std::cout << camera_pose.matrix << std::endl;
 
     return 0;
 }
