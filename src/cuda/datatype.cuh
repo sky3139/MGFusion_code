@@ -15,19 +15,21 @@
  */
 struct Intr
 {
-    float fx, fy, cx, cy;
+    union
+    {
+        float4 cam;
+        struct
+        {
+            float fx, fy, cx, cy;
+        };
+    };
+
     float2 finv;
     float sca;
     Intr() : fx(0), fy(0), cx(0), cy(0) {}
     Intr(float fx_, float fy_, float cx_, float cy_) : fx(fx_), fy(fy_), cx(cx_), cy(cy_)
     {
         finv = make_float2(1.0f / fx_, 1.0f / fy_);
-    }
-
-    Intr operator()(int level_index) const
-    {
-        int div = 1 << level_index;
-        return (Intr(fx / div, fy / div, cx / div, cy / div));
     }
     Intr(cv::Mat &k)
     {
@@ -44,6 +46,14 @@ struct Intr
         float y = z * (v - cy) * finv.y;
         return make_float3(x, y, z);
     }
+    __device__ inline float2 Projector(const float3 &p) const
+    {
+        float2 coo;
+        coo.x = __fmaf_rn(fx, __fdividef(p.x, p.z), cx);
+        coo.y = __fmaf_rn(fy, __fdividef(p.y, p.z), cy);
+        return coo;
+    }
+
     void print()
     {
         printf("%f,%f,%f,%f sca:%f,%f\n", fx, fy, cx, cy, sca, finv.x);

@@ -33,13 +33,13 @@ file(GLOB TOOL_SRCS  src/tool/**)
 cuda_add_library(tool  ${TOOL_SRCS})
 target_link_libraries(tool ${OpenCV_LIBS})
 
-CUDA_ADD_EXECUTABLE(mvgrid src/app/mvgrid.cu ${CURRENT_HEADERS} ${CURRENT_SOURCES})
+CUDA_ADD_EXECUTABLE(mvgrid src/app/mvgrid.cu src/app/ratcast.cu ${CURRENT_HEADERS} ${CURRENT_SOURCES})
 target_link_libraries (mvgrid ${OpenCV_LIBS} tool lz4 )
 
-CUDA_ADD_EXECUTABLE(raycast src/app/raycast.cu ${CURRENT_HEADERS} ${CURRENT_SOURCES})
-target_link_libraries (raycast ${OpenCV_LIBS} tool lz4 )
-CUDA_ADD_EXECUTABLE(rnew src/app/main1.cu ${CURRENT_HEADERS} ${CURRENT_SOURCES})
-target_link_libraries (rnew ${OpenCV_LIBS} tool  )
+# CUDA_ADD_EXECUTABLE(raycast src/app/raycast.cu ${CURRENT_HEADERS} ${CURRENT_SOURCES})
+# target_link_libraries (raycast ${OpenCV_LIBS} tool lz4 )
+# CUDA_ADD_EXECUTABLE(rnew src/app/main1.cu ${CURRENT_HEADERS} ${CURRENT_SOURCES})
+# target_link_libraries (rnew ${OpenCV_LIBS} tool  )
 
 # CUDA_ADD_EXECUTABLE(dmv src/app/dmv.cu ${CURRENT_HEADERS} ${CURRENT_SOURCES})
 # target_link_libraries (dmv ${OpenCV_LIBS} tool lz4 )

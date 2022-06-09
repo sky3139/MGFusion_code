@@ -3,59 +3,52 @@
 #define __kf_hdevice__ __host__ __device__ __forceinline__
 #define __kf_device__ __device__ __forceinline__
 
-__kf_device__ float dot(const float3 &v1, const float3 &v2)
-{
-    return __fmaf_rn(v1.x, v2.x, __fmaf_rn(v1.y, v2.y, v1.z * v2.z));
-}
+// __kf_device__ float dot(const float3 &v1, const float3 &v2)
+// {
+//     return __fmaf_rn(v1.x, v2.x, __fmaf_rn(v1.y, v2.y, v1.z * v2.z));
+// }
 
-__kf_device__ float3 &operator+=(float3 &vec, const float &v)
-{
-    vec.x += v;
-    vec.y += v;
-    vec.z += v;
-    return vec;
-}
+// __kf_device__ float3 &operator+=(float3 &vec, const float &v)
+// {
+//     vec.x += v;
+//     vec.y += v;
+//     vec.z += v;
+//     return vec;
+// }
 
-__kf_device__ float3 &operator+=(float3 &v1, const float3 &v2)
-{
-    v1.x += v2.x;
-    v1.y += v2.y;
-    v1.z += v2.z;
-    return v1;
-}
+// __kf_device__ float3 &operator+=(float3 &v1, const float3 &v2)
+// {
+//     v1.x += v2.x;
+//     v1.y += v2.y;
+//     v1.z += v2.z;
+//     return v1;
+// }
 
-__kf_device__ float3 operator+(const float3 &v1, const float3 &v2)
-{
-    return make_float3(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z);
-}
+// __kf_device__ float3 operator+(const float3 &v1, const float3 &v2)
+// {
+//     return make_float3(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z);
+// }
 
-__kf_device__ float3 operator*(const float3 &v1, const float3 &v2)
-{
-    return make_float3(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z);
-}
+// __kf_device__ float3 operator*(const float3 &v1, const float3 &v2)
+// {
+//     return make_float3(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z);
+// }
 
-__kf_hdevice__ float3 operator*(const float3 &v1, const int3 &v2)
-{
-    return make_float3(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z);
-}
 
-__kf_device__ float3 operator/(const float3 &v1, const float3 &v2)
-{
-    return make_float3(v1.x / v2.x, v1.y / v2.y, v1.z / v2.z);
-}
 
-__kf_hdevice__ float3 operator/(const float &v, const float3 &vec)
-{
-    return make_float3(v / vec.x, v / vec.y, v / vec.z);
-}
+// __kf_device__ float3 operator/(const float3 &v1, const float3 &v2)
+// {
+//     return make_float3(v1.x / v2.x, v1.y / v2.y, v1.z / v2.z);
+// }
 
-__kf_device__ float3 &operator*=(float3 &vec, const float &v)
-{
-    vec.x *= v;
-    vec.y *= v;
-    vec.z *= v;
-    return vec;
-}
+
+// __kf_device__ float3 &operator*=(float3 &vec, const float &v)
+// {
+//     vec.x *= v;
+//     vec.y *= v;
+//     vec.z *= v;
+//     return vec;
+// }
 
 __kf_device__ float3 operator-(const float3 &v1, const float3 &v2)
 {

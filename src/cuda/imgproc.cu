@@ -9,7 +9,7 @@ namespace device
         // devpa->center.u64 = val;
         // devpa->dev_points_num=inval;
     }
-    __global__ void bilateral_kernel(const PtrStepSz<unsigned short> src, PtrStepSz<unsigned short> dst, const int ksz, const float sigma_spatial2_inv_half, const float sigma_depth2_inv_half)
+    __global__ void bilateral_kernel(const Patch<unsigned short> src, Patch<unsigned short> dst, const int ksz, const float sigma_spatial2_inv_half, const float sigma_depth2_inv_half)
     {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -17,7 +17,7 @@ namespace device
         if (x >= src.cols || y >= src.rows)
             return;
 
-        int value = src.ptr(y)[x];
+        int value = src(y, x);
 
         int tx = min(x - ksz / 2 + ksz, src.cols - 1);
         int ty = min(y - ksz / 2 + ksz, src.rows - 1);
@@ -29,7 +29,7 @@ namespace device
         {
             for (int cx = max(x - ksz / 2, 0); cx < tx; ++cx)
             {
-                int depth = src.ptr(y)[x];
+                int depth = src(y, x);
 
                 float space2 = (x - cx) * (x - cx) + (y - cy) * (y - cy);
                 float color2 = (value - depth) * (value - depth);
@@ -40,9 +40,9 @@ namespace device
                 sum2 += weight;
             }
         }
-        dst.ptr(y)[x] = __float2int_rn(sum1 / sum2);
+        dst(y, x) = __float2int_rn(sum1 / sum2);
     }
-    void bilateralFilter(const PtrStepSz<unsigned short> &src, const PtrStepSz<unsigned short> &dst, int kernel_size,
+    void bilateralFilter(const Patch<unsigned short> &src, const Patch<unsigned short> &dst, int kernel_size,
                          float sigma_spatial, float sigma_depth){
         // sigma_depth *= 1000; // meters -> mm
 
@@ -55,13 +55,13 @@ namespace device
     };
 
     __global__ void
-    scaleDepthCloud(const PtrStepSz<unsigned short> depth, PtrStep<PosType> scaled, float *campose, const Intr intr)
+    scaleDepthCloud(const Patch<unsigned short> depth, Patch<PosType> scaled, float *campose, const Intr intr)
     {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
         if (x >= depth.cols || y >= depth.rows)
             return;
-        int Dp = depth.ptr(y)[x];
+        int Dp = depth(y, x);
         float3 xp = intr.reprojector(x, y, Dp * 0.001f);
         PosType gp;
         __shared__ float cam[16];
@@ -76,7 +76,7 @@ namespace device
         gp.x = cam[0 * 4 + 0] * xp.x + cam[0 * 4 + 1] * xp.y + cam[0 * 4 + 2] * xp.z + cam[0 * 4 + 3];
         gp.y = cam[1 * 4 + 0] * xp.x + cam[1 * 4 + 1] * xp.y + cam[1 * 4 + 2] * xp.z + cam[1 * 4 + 3];
         gp.z = cam[2 * 4 + 0] * xp.x + cam[2 * 4 + 1] * xp.y + cam[2 * 4 + 2] * xp.z + cam[2 * 4 + 3];
-        scaled.ptr(y)[x] = gp; // Dp * 0.0002f; //  / 1000.f; //meters
+        scaled(y, x) = gp; // Dp * 0.0002f; //  / 1000.f; //meters
     }
 
     __global__ void
@@ -214,21 +214,21 @@ namespace device
         pboxmap->pVoxel[pt_grid_z].weight = 0;
     }
     __global__ void
-    scaleDepth(const PtrStepSz<unsigned short> depth, PtrStep<PosType> scaled, PtrStep<PosType> gcloud,
-               PtrStep<u32B4> zin, float *campose, const Intr intr, u64B4 center)
+    scaleDepth(const Patch<unsigned short> depth, Patch<PosType> scaled, Patch<PosType> gcloud,
+               Patch<uint32_t> zin, float *campose, const Intr intr, u64B4 center)
     {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
         if (x >= depth.cols || y >= depth.rows)
             return;
-        float Dp = depth.ptr(y)[x] * intr.sca;
+        float Dp = depth(y, x) * intr.sca;
 
         PosType xp = intr.reprojector(x, y, Dp);
 
         // float xl = (x - intr.cx) / intr.fx;
         // float yl = (y - intr.cy) / intr.fy;
         // float lambda = sqrtf(xl * xl + yl * yl + 1);
-        scaled.ptr(y)[x] = xp; // Dp * 0.0002f; //  / 1000.f; //meters
+        scaled(y, x) = xp; // Dp * 0.0002f; //  / 1000.f; //meters
 
         PosType gp;
         __shared__ float cam[12];
@@ -246,7 +246,7 @@ namespace device
         gp.y = cam[1 * 4 + 0] * xp.x + cam[1 * 4 + 1] * xp.y + cam[1 * 4 + 2] * xp.z + cam[1 * 4 + 3];
         gp.z = cam[2 * 4 + 0] * xp.x + cam[2 * 4 + 1] * xp.y + cam[2 * 4 + 2] * xp.z + cam[2 * 4 + 3];
 
-        gcloud.ptr(y)[x] = gp; // Dp * 0.0002f; //  / 1000.f; //meters
+        gcloud(y, x) = gp; // Dp * 0.0002f; //  / 1000.f; //meters
 
         u32B4 vecs;
         int16_t vx = __float2int_rd(gp.x / (float)(VOXELSIZE)); //向下取整 __float2int_rn __float2int_rd rn是求最近的偶数，rz是逼近零，ru是向上舍入[到正无穷]，rd是向下舍入[到负无穷]。  std::floor
@@ -257,7 +257,7 @@ namespace device
         vecs.y = (int8_t)(vy - center.y);
         vecs.z = (int8_t)(vz - center.z);
 
-        zin.ptr(y)[x] = vecs;
+        zin(y, x) = vecs.u32;
     }
 
     //写论文测试用
@@ -422,14 +422,14 @@ namespace device
     }
 
     // __global__ void
-    // scaleDepth(const PtrStepSz<unsigned short> depth, PtrStep<PosType> scaled, const Intr intr)
+    // scaleDepth(const Patch<unsigned short> depth, Patch<PosType> scaled, const Intr intr)
     // {
     //     int x = threadIdx.x + blockIdx.x * blockDim.x;
     //     int y = threadIdx.y + blockIdx.y * blockDim.y;
 
     //     if (x >= depth.cols || y >= depth.rows)
     //         return;
-    //     int Dp = depth.ptr(y)[x];
+    //     int Dp = depth(y,x);
 
     //     PosType xp;
     //     xp.z=Dp * 0.0002f;
@@ -440,13 +440,13 @@ namespace device
     //     // float yl = (y - intr.cy) / intr.fy;
     //     // float lambda = sqrtf(xl * xl + yl * yl + 1);
 
-    //     scaled.ptr(y)[x] =xp;// Dp * 0.0002f; //  / 1000.f; //meters
+    //     scaled(y,x) =xp;// Dp * 0.0002f; //  / 1000.f; //meters
     // }
     __global__ void Integrate32(float *cam_K,
                                 int im_height, int im_width,
                                 float voxel_size, float trunc_margin,
                                 struct Voxel32 **dev_boxptr, struct kernelPara *gpu_kpara,
-                                const PtrStepSz<PosType> depthScaled)
+                                const Patch<PosType> depthScaled)
     {
         int pt_grid_z = threadIdx.x; // threadId 32
         int pt_grid_y = threadIdx.y; // threadId 32
@@ -486,7 +486,7 @@ namespace device
 
             // uint16_t img_depu = gpu_kpara->dev_depthdata[pt_pix_y * im_width + pt_pix_x];
             // union points *pt = (union points *)&point[pt_pix_y * im_width + pt_pix_x];
-            PosType img_dep = depthScaled.ptr(pt_pix_y)[pt_pix_x]; // meters
+            PosType img_dep = depthScaled(pt_pix_y, pt_pix_x); // meters
 
             // float img_dep = img_depu * 0.001f; //pt->xyz;//
             if (img_dep.z <= 0.2 || img_dep.z > 6)

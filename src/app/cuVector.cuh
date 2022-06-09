@@ -161,7 +161,7 @@ struct Patch
         this->cols = lth.cols;
     }
 
-   __device__ __host__ ~Patch()
+    __device__ __host__ ~Patch()
     {
         // cudaFree(devPtr);
     }
@@ -185,7 +185,7 @@ struct Patch
     {
         return devPtr[rows * pitch / sizeof(T) + cols];
     }
-   const    __device__ inline T &operator()(int rows, int cols) const
+    const __device__ inline T &operator()(int rows, int cols) const
     {
         return devPtr[rows * pitch / sizeof(T) + cols];
     }
@@ -201,7 +201,6 @@ struct Patch
         printf("pitch=%ld rows=%ld cols=%ld\n", pitch, rows, cols);
     }
 };
-
 
 template <class T>
 struct CUVector
@@ -260,7 +259,7 @@ struct CUVector
     {
         return devPtr[len];
     }
- 
+
     // __device__ inline T *get(size_t rows, size_t cols)
     // {
     //     // if (rows < pitch)

@@ -126,6 +126,7 @@
         "valueobject": "cpp",
         "observer_ptr": "cpp",
         "ref_ptr": "cpp",
-        "affinity": "cpp"
+        "affinity": "cpp",
+        "operationthread": "cpp"
     }
 }

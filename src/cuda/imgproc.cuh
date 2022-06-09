@@ -1,7 +1,7 @@
 #pragma once
 #include <cuda_runtime_api.h>
 #include "device_array.hpp"
-
+#include "../app/cuVector.cuh"
 #include "datatype.cuh"
 namespace device
 {
@@ -19,20 +19,20 @@ namespace device
     __global__ void compute_dists_kernel();
     void computeDists(const ushort *depth[], ushort *dists[], float2 finv, float2 c);
     __global__ void
-    scaleDepth(const PtrStepSz<unsigned short> depth, PtrStep<PosType> scaled, PtrStep<PosType> gcloud,
-               PtrStep<u32B4> zin, float *campose, const Intr intr, u64B4 center);
-    __host__ void bilateralFilter(const PtrStepSz<unsigned short> &src, const PtrStepSz<unsigned short> &dst, int kernel_size,
+    scaleDepth(const Patch<unsigned short> depth, Patch<PosType> scaled, Patch<PosType> gcloud,
+               Patch<uint32_t> zin, float *campose, const Intr intr, u64B4 center);
+    __host__ void bilateralFilter(const Patch<unsigned short> &src, const Patch<unsigned short> &dst, int kernel_size,
                                   float sigma_spatial, float sigma_depth);
     __global__ void Integrate32(float *cam_K,
                                 int im_height, int im_width,
                                 float voxel_size, float trunc_margin,
                                 struct Voxel32 **dev_boxptr, struct kernelPara *gpu_kpara,
-                                const PtrStepSz<PosType> depthScaled);
+                                const Patch<PosType> depthScaled);
 
     __global__ void scaleDepthCloud(const PtrStepSz<unsigned short> depth, PtrStep<PosType> scaled, float *campose, const Intr intr);
     __global__ void
     mappoints_cube2tsdf_batch(struct Voxel32 *dev_pbox, struct ex_buf_ *point_buf);
-    __global__ void bilateral_kernel(const PtrStepSz<unsigned short> src, PtrStepSz<unsigned short> dst, const int ksz, const float sigma_spatial2_inv_half, const float sigma_depth2_inv_half);
+    __global__ void bilateral_kernel(const Patch<unsigned short> src, Patch<unsigned short> dst, const int ksz, const float sigma_spatial2_inv_half, const float sigma_depth2_inv_half);
     __global__ void
     cloud2grids(struct Voxel32 *dev_pbox, UPoints *ps, size_t len_point);
     __global__ void

@@ -18,8 +18,9 @@
 #include "cuda/temp_utils.hpp"
 #include <vector_functions.hpp>
 #include "cuda/vector_math.hpp"
-
+#include "app/cuVector.cuh"
 #include "../../read.hpp"
+#include "app/main.hpp"
 using namespace std;
 
 struct Reprojector
@@ -53,7 +54,7 @@ struct Pointcuda
 typedef Pointcuda Normal;
 
 // kfusion::device::Reprojector::Reprojector(float fx, float fy, float cx, float cy) : finv(make_float2(1.f/fx, 1.f/fy)), c(make_float2(cx, cy)) {}
-__global__ void points_normals_kernel(const Reprojector reproj, const PtrStepSz<ushort> depth, PtrStep<float4> points, PtrStep<float4> normals)
+__global__ void points_normals_kernel(const Reprojector reproj, const Patch<ushort> depth, Patch<float4> points, Patch<float4> normals)
 {
     int x = threadIdx.x + blockIdx.x * blockDim.x;
     int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -62,16 +63,16 @@ __global__ void points_normals_kernel(const Reprojector reproj, const PtrStepSz<
         return;
 
     const float qnan = __int_as_float(0x7fffffff);
-    points.ptr(y)[x] = make_float4(qnan, qnan, qnan, qnan);
-    normals.ptr(y)[x] = make_float4(qnan, qnan, qnan, qnan);
+    points(y, x) = make_float4(qnan, qnan, qnan, qnan);
+    normals(y, x) = make_float4(qnan, qnan, qnan, qnan);
 
     if (x >= depth.cols - 1 || y >= depth.rows - 1)
         return;
 
     // // //mm -> meters
-    float z00 = depth.ptr(y)[x] * 0.0002f;
-    float z01 = depth.ptr(y)[x + 1] * 0.0002f;
-    float z10 = depth.ptr(y + 1)[x] * 0.0002f;
+    float z00 = depth(y, x) * 0.0002f;
+    float z01 = depth(y, x+1)  * 0.0002f;
+    float z10 = depth(y+1, x)  * 0.0002f;
 
     if (z00 * z01 * z10 != 0)
     {
@@ -80,19 +81,19 @@ __global__ void points_normals_kernel(const Reprojector reproj, const PtrStepSz<
         float3 v10 = reproj(x, y + 1, z10);
 
         float3 n = normalized(cross(v01 - v00, v10 - v00));
-        normals.ptr(y)[x] = make_float4(-n.x, -n.y, -n.z, 0.f);
-        points.ptr(y)[x] = make_float4(v00.x, v00.y, v00.z, 0.f);
+        normals(y, x) = make_float4(-n.x, -n.y, -n.z, 0.f);
+        points(y, x) = make_float4(v00.x, v00.y, v00.z, 0.f);
     }
 }
 // kfusion::device::Reprojector::Reprojector(float fx, float fy, float cx, float cy) : finv(make_float2(1.f/fx, 1.f/fy)), c(make_float2(cx, cy)) {}
 // __kf_device__ Vec3f tr(const float4& v) { return ; }
-void computePointNormals(const Intr &intr, const DeviceArray2D<unsigned short> &depth, DeviceArray2D<float4> &points, DeviceArray2D<float4> &normals)
+void computePointNormals(const Intr &intr, const Patch<unsigned short> &depth, Patch<float4> &points, Patch<float4> &normals)
 {
-    points.create(depth.rows(), depth.cols());
-    normals.create(depth.rows(), depth.cols());
+    points.create(depth.rows, depth.cols);
+    normals.create(depth.rows, depth.cols);
 
     dim3 block(32, 8);
-    dim3 grid(divUp(depth.cols(), block.x), divUp(depth.rows(), block.y));
+    dim3 grid(divUp(depth.cols, block.x), divUp(depth.rows, block.y));
     Reprojector reproj(intr.fx, intr.fy, intr.cx, intr.cy);
 
     points_normals_kernel<<<grid, block>>>(reproj, depth, points, normals);
@@ -111,8 +112,8 @@ struct RGB
     };
 };
 
-__global__ void render_image_kernel(const PtrStep<ushort> depth, const PtrStep<float4> normals,
-                                    const Reprojector reproj, PtrStepSz<uchar4> dst)
+__global__ void render_image_kernel(const Patch<ushort> depth, const Patch<float4> normals,
+                                    const Reprojector reproj, Patch<RGB> dst)
 {
     int x = threadIdx.x + blockIdx.x * blockDim.x;
     int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -122,7 +123,7 @@ __global__ void render_image_kernel(const PtrStep<ushort> depth, const PtrStep<f
 
     float3 color;
 
-    int d = depth.ptr(y)[x];
+   const ushort d = depth(y,x);
 
     if (d == 0)
     {
@@ -135,7 +136,7 @@ __global__ void render_image_kernel(const PtrStep<ushort> depth, const PtrStep<f
     else
     {
         float3 P = reproj(x, y, d * 0.001f);
-        float4 v4 = normals.ptr(y)[x];
+        float4 v4 = normals(y, x);
 
         float3 N = make_float3(v4.x, v4.y, v4.z);
 
@@ -159,25 +160,25 @@ __global__ void render_image_kernel(const PtrStep<ushort> depth, const PtrStep<f
         color = make_float3(Ix, Ix, Ix);
     }
 
-    uchar4 out;
-    out.x = static_cast<unsigned char>(__saturatef(color.x) * 255.f);
-    out.y = static_cast<unsigned char>(__saturatef(color.y) * 255.f);
-    out.z = static_cast<unsigned char>(__saturatef(color.z) * 255.f);
-    out.w = 0;
-    dst.ptr(y)[x] = out;
+    RGB out;
+    out.b = static_cast<unsigned char>(__saturatef(color.x) * 255.f);
+    out.g = static_cast<unsigned char>(__saturatef(color.y) * 255.f);
+    out.r = static_cast<unsigned char>(__saturatef(color.z) * 255.f);
+    // out.w = 0;
+    dst(y, x) = out;
 }
 
-void bilateralFilter2(const DeviceArray2D<unsigned short> &src, const DeviceArray2D<unsigned short> &dst, int kernel_size,
+void bilateralFilter2(const Patch<unsigned short> &src, const Patch<unsigned short> &dst, int kernel_size,
                       float sigma_spatial, float sigma_depth)
 {
     sigma_depth *= 1000; // meters -> mm
 
-    // points.create(depth.rows(), depth.cols());
-    // normals.create(depth.rows(), depth.cols());
+    // points.create(depth.rows, depth.cols);
+    // normals.create(depth.rows, depth.cols);
 
     dim3 block(32, 8);
-    dim3 grid(divUp(src.cols(), block.x), divUp(src.rows(), block.y));
-    // dim3 grid (divUp (depth.cols(), block.x), divUp (depth.rows (), block.y));
+    dim3 grid(divUp(src.cols, block.x), divUp(src.rows, block.y));
+    // dim3 grid (divUp (depth.cols, block.x), divUp (depth.rows (), block.y));
     // Reprojector reproj(intr.fx, intr.fy, intr.cx, intr.cy);
 
     // points_normals_kernel<<<grid, block>>>(reproj, depth, points, normals);
@@ -186,9 +187,9 @@ void bilateralFilter2(const DeviceArray2D<unsigned short> &src, const DeviceArra
     device::bilateral_kernel<<<grid, block>>>(src, dst, kernel_size, 0.5f / (sigma_spatial * sigma_spatial), 0.5f / (sigma_depth * sigma_depth));
     ck(cudaGetLastError());
 };
-void renderImage(const Intr &intr, const DeviceArray2D<unsigned short> &depth,
-                 DeviceArray2D<float4> &points, DeviceArray2D<float4> &normals,
-                 DeviceArray2D<RGB> &image, RGB *_32buf)
+void renderImage(const Intr &intr, const Patch<unsigned short> &depth,
+                 Patch<float4> &points, Patch<float4> &normals,
+                 Patch<RGB> &image, RGB *_32buf)
 {
     // const device::Depth& d = (const device::Depth&)depth;
     // const device::Normals& n = (const device::Normals&)normals;
@@ -203,7 +204,7 @@ void renderImage(const Intr &intr, const DeviceArray2D<unsigned short> &depth,
 
     // , const float3& light_pose
     dim3 block(32, 8);
-    dim3 grid(divUp(depth.cols(), block.x), divUp(depth.rows(), block.y));
+    dim3 grid(divUp(depth.cols, block.x), divUp(depth.rows, block.y));
 
     render_image_kernel<<<grid, block>>>(depth, normals, reproj, image);
     // cudaSafeCall ( cudaGetLastError () );
@@ -255,21 +256,21 @@ struct TSDF
         struct kernelPara *gpu_kpara;
         cudaMalloc((void **)&gpu_kpara, sizeof(struct kernelPara));
         Timer tm;
-        DeviceArray2D<float3> depthScaled(480, 640);
-        DeviceArray2D<float3> gocloud(480, 640);
+        Patch<float3> depthScaled(480, 640);
+        Patch<float3> gocloud(480, 640);
 
         float3 *host_points; //=new float3;
         ck(cudaMallocHost((void **)&host_points, sizeof(float3) * 480 * 640));
         // std::cout<<sizeof( float3)<<std::endl;
 
         //
-        DeviceArray2D<unsigned short> depth_device_img(480, 640);
-        DeviceArray2D<unsigned short> device_depth_src(480, 640);
+        Patch<unsigned short> depth_device_img(480, 640);
+        Patch<unsigned short> device_depth_src(480, 640);
 
-        DeviceArray2D<float4> points_pyr, normals_pyr;
-        DeviceArray2D<u32B4> p_int(480, 640);
+        Patch<float4> points_pyr, normals_pyr;
+        Patch<uint32_t> p_int(480, 640);
         RGB *host_32buf;
-        DeviceArray2D<RGB> imgcuda(480, 640);
+        Patch<RGB> imgcuda(480, 640);
         ck(cudaMallocHost((void **)&host_32buf, sizeof(RGB) * 480 * 640));
 
         Intr intr(parser->cam_K);
@@ -409,7 +410,7 @@ struct TSDF
             }
             tm.Start();
             memcpy(mm.cpu_kpara.dev_rgbdata, parser->rgb_.data, parser->rgb_.rows * parser->rgb_.cols * 3);                          //上传彩色图像到GPU
-            device_depth_src.upload(parser->depth_src.data, parser->depth_src.step, parser->depth_src.rows, parser->depth_src.cols); //上传深度图
+            device_depth_src.upload(parser->depth_src.ptr<uint16_t>(), parser->depth_src.step); //上传深度图
             bilateralFilter2(device_depth_src, depth_device_img, 7, 4.5f, 0.04f);                                                    //双边滤波
             memcpy(mm.cpu_kpara.cam2base, &parser->m_pose.val[0], 4 * 4 * sizeof(float));                                            //上传位姿
             ck(cudaMemcpy((void *)g_cam, (void *)(&parser->m_pose.val[0]), sizeof(float) * 16, cudaMemcpyHostToDevice));             //上传位姿
@@ -532,8 +533,12 @@ struct TSDF
                                                tm.ElapsedMicroSeconds() * 0.001f);
             debugtext += cv::format(" cloudBoxs:%ld,cpu %ld", mm.mcps.mp_cpuVoxel32.size(), mm.gpu_pbox_free.size());
             mp_v->setstring(debugtext);
-            mm.save_tsdf_mode_grids("ab");
-            assert(0);
+
+            cv::Mat m1, m2, m3;
+
+            mgraycast_test(m1, m2, m3, intr.cam, mm.pboxs, mp_v->getpose());
+            // mm.save_tsdf_mode_grids("ab");
+            // assert(0);
             // Mat po_int, col_or;
             // mm.mcps.margCpuVoxel32Tocloud(po_int, col_or);
             // if (po_int.rows > 0)
