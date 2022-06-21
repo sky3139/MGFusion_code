@@ -23,7 +23,7 @@ namespace device
                Patch<uint32_t> zin, float *campose, const Intr intr, u64B4 center);
     __host__ void bilateralFilter(const Patch<unsigned short> &src, const Patch<unsigned short> &dst, int kernel_size,
                                   float sigma_spatial, float sigma_depth);
-    __global__ void Integrate32(float *cam_K,
+    __global__ void Integrate32(float4 intr,
                                 int im_height, int im_width,
                                 float voxel_size, float trunc_margin,
                                 struct Voxel32 **dev_boxptr, struct kernelPara *gpu_kpara,

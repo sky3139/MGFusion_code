@@ -13,8 +13,8 @@ mapmanages::mapmanages()
     // pboxs =  std::vector<struct Voxel32 *>(CURR_BOX_NUM, NULL);
     pboxs = (struct Voxel32 **)calloc(CURR_BOX_NUM, sizeof(struct Voxel32 *));
     struct Voxel32 srcbox;
-    cudaMalloc((void **)&dev_boxpool, sizeof(struct Voxel32) * ALLL_NUM); //申请GPU显存
-    cudaMemset(dev_boxpool, 0, sizeof(struct Voxel32) * ALLL_NUM);
+    ck(cudaMalloc((void **)&dev_boxpool, sizeof(struct Voxel32) * ALLL_NUM)); //申请GPU显存
+    ck(cudaMemset(dev_boxpool, 0, sizeof(struct Voxel32) * ALLL_NUM));
 
     checkCUDA(cudaGetLastError());
     for (int i = 0; i < ALLL_NUM; i++)

@@ -442,30 +442,33 @@ namespace device
 
     //     scaled(y,x) =xp;// Dp * 0.0002f; //  / 1000.f; //meters
     // }
-    __global__ void Integrate32(float *cam_K,
+    __global__ void Integrate32(float4 intr,
                                 int im_height, int im_width,
                                 float voxel_size, float trunc_margin,
                                 struct Voxel32 **dev_boxptr, struct kernelPara *gpu_kpara,
                                 const Patch<PosType> depthScaled)
     {
-        int pt_grid_z = threadIdx.x; // threadId 32
+        int pt_grid_x = threadIdx.x; // threadId 32
         int pt_grid_y = threadIdx.y; // threadId 32
-        int blockId = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
+        int blockId = blockIdx.x;
         __shared__ float cam2base[12];
-        if (0 == pt_grid_z && pt_grid_y == 0)
+        if (0 == pt_grid_x && pt_grid_y == 0)
         {
             for (int i = 0; i < 12; i++)
                 cam2base[i] = gpu_kpara->cam2base[i];
         }
+        // float4 intr = make_float4(cam_K[0], cam_K[4], cam_K[2], cam_K[5]);
+
         struct Voxel32 *pbox = dev_boxptr[blockId];
         struct u32B4 u32 = pbox->index;
+        u64B4 center = gpu_kpara->center;
         __syncthreads();
-        for (int pt_grid_x = 0; pt_grid_x < CUBEVOXELSIZE; pt_grid_x++)
+        for (int pt_grid_z = 0; pt_grid_z < CUBEVOXELSIZE; pt_grid_z++)
         {
             // 计算小体素的世界坐标
-            float pt_base_x = (u32.x + gpu_kpara->center.x) * VOXELSIZE + pt_grid_x * voxel_size;
-            float pt_base_y = (u32.y + gpu_kpara->center.y) * VOXELSIZE + pt_grid_y * voxel_size;
-            float pt_base_z = (u32.z + gpu_kpara->center.z) * VOXELSIZE + pt_grid_z * voxel_size;
+            float pt_base_x = (u32.x + center.x) * VOXELSIZE + pt_grid_x * voxel_size;
+            float pt_base_y = (u32.y + center.y) * VOXELSIZE + pt_grid_y * voxel_size;
+            float pt_base_z = (u32.z + center.z) * VOXELSIZE + pt_grid_z * voxel_size;
 
             //计算体素在相机坐标系的坐标
             float tmp_pt[3] = {0};
@@ -478,9 +481,9 @@ namespace device
 
             if (pt_cam_z <= 0)
                 continue;
-
-            int pt_pix_x = roundf(cam_K[0 * 3 + 0] * (pt_cam_x / pt_cam_z) + cam_K[0 * 3 + 2]);
-            int pt_pix_y = roundf(cam_K[1 * 3 + 1] * (pt_cam_y / pt_cam_z) + cam_K[1 * 3 + 2]);
+            // __float2int_rd(intr.fx * __fdividef(pt_cam_x, pt_cam_z) + intr.cx);
+            int pt_pix_x = __float2int_rd(intr.x * __fdividef(pt_cam_x, pt_cam_z) + intr.z);
+            int pt_pix_y = __float2int_rd(intr.y * __fdividef(pt_cam_y, pt_cam_z) + intr.w);
             if (pt_pix_x < 0 || pt_pix_x >= im_width || pt_pix_y < 0 || pt_pix_y >= im_height)
                 continue;
 
@@ -498,22 +501,22 @@ namespace device
 
             union voxel &p = pbox->pVoxel[vox_index];
 
-            float dist = fmin(1.0f, diff / trunc_margin);
+            float dist = fmin(1.0f, __fdividef(diff, trunc_margin));
             // float weight_old = p.weight;//> 128 ? 128 : p.weight;
             // float weight_new = weight_old + 1.0f;
             float weight_old = (float)p.weight; //> 128 ? 128 : p.weight;
             p.weight = p.weight > 250 ? p.weight : p.weight + 1;
-            float weight_new = (float)p.weight;
-            p.tsdf = (p.tsdf * weight_old + dist) / weight_new;
+            float weight_new = __fdividef(1.0f, (float)p.weight);
+            p.tsdf = __fmaf_rd(p.tsdf, weight_old, dist) * weight_new;
 
-            uint8_t *rgb_val = &gpu_kpara->dev_rgbdata[pt_pix_y * im_width + pt_pix_x][0]; // pt->rgb[0];
+            uchar3 rgb_val = gpu_kpara->dev_rgbdata[pt_pix_y * im_width + pt_pix_x]; // pt->rgb[0];
 
-            uint16_t mval = (p.rgb[0] * weight_old + rgb_val[0]) / weight_new;
-            p.rgb[0] = mval > 255 ? 255 : mval;
-            mval = (p.rgb[1] * weight_old + rgb_val[1]) / weight_new;
-            p.rgb[1] = mval > 255 ? 255 : mval;
-            mval = (p.rgb[2] * weight_old + rgb_val[2]) / weight_new;
-            p.rgb[2] = mval > 255 ? 255 : mval;
+            uint16_t mval = __fmaf_rd(p.color.x, weight_old, rgb_val.x) * weight_new;
+            p.color.x = mval > 255 ? 255 : mval;
+            mval = __fmaf_rd(p.color.y, weight_old, rgb_val.y) * weight_new;
+            p.color.y = mval > 255 ? 255 : mval;
+            mval = __fmaf_rd(p.color.z, weight_old, rgb_val.z) * weight_new;
+            p.color.z = mval > 255 ? 255 : mval;
         }
         // }
     }

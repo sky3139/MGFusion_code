@@ -14,7 +14,7 @@ FIND_PACKAGE(OpenCV REQUIRED)
 message(<<--OpenCV_VERSION:${OpenCV_VERSION}-->>)
 
 SET(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -std=c++14)
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_61,code=sm_61;--expt-relaxed-constexpr;-w)#;-G;-g$
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_61,code=sm_61;-prec-div=true;--expt-relaxed-constexpr;-w)#;-G;-g$
 
 file(GLOB CURRENT_SOURCES  src/*.*
 src/cuda/*.*

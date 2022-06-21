@@ -307,7 +307,7 @@ struct kernelPara
         float4 pose[4];
     };
 
-    uint8_t dev_rgbdata[480 * 640][3];
+    uchar3 dev_rgbdata[480 * 640];
 
     // uint16_t dev_depthdata[480 * 640];
 };
