@@ -37,7 +37,7 @@ public:
   ~Timer()
   {
     double dt = ElapsedMicroSeconds() * 0.001;
-    printf("%s:%.2f ms\n", msg.c_str(), dt);
+    printf("%s:%.3f ms\n", msg.c_str(), dt);
   }
 
 private:

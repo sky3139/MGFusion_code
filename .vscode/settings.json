@@ -129,6 +129,8 @@
         "affinity": "cpp",
         "operationthread": "cpp",
         "light": "cpp",
-        "object": "cpp"
+        "object": "cpp",
+        "*.ipp": "cpp",
+        "mixinvector": "cpp"
     }
 }

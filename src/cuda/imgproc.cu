@@ -214,8 +214,8 @@ namespace device
         pboxmap->pVoxel[pt_grid_z].weight = 0;
     }
     __global__ void
-    scaleDepth(const Patch<unsigned short> depth, Patch<PosType> scaled, Patch<PosType> gcloud,
-               Patch<uint32_t> zin, float *campose, const Intr intr, u64B4 center)
+    scaleDepth(uint32_t *kset, const Patch<unsigned short> depth, Patch<PosType> scaled, Patch<PosType> gcloud,
+               Patch<uint32_t> zin, const Intr intr, struct kernelPara gpu_kpara)
     {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -237,7 +237,7 @@ namespace device
         {
             for (int i = 0; i < 12; i++)
             {
-                cam[i] = campose[i];
+                cam[i] = gpu_kpara.cam2base[i];
             }
         }
         __syncthreads();
@@ -249,14 +249,16 @@ namespace device
         gcloud(y, x) = gp; // Dp * 0.0002f; //  / 1000.f; //meters
 
         u32B4 vecs;
-        int16_t vx = __float2int_rd(gp.x / (float)(VOXELSIZE)); //向下取整 __float2int_rn __float2int_rd rn是求最近的偶数，rz是逼近零，ru是向上舍入[到正无穷]，rd是向下舍入[到负无穷]。  std::floor
-        int16_t vy = __float2int_rd(gp.y / (float)(VOXELSIZE)); //向下取整
-        int16_t vz = __float2int_rd(gp.z / (float)(VOXELSIZE)); //向下取整
-
+        int16_t vx = __float2int_rd(gp.x * (VOXELSIZE_INV)); //向下取整 __float2int_rn __float2int_rd rn是求最近的偶数，rz是逼近零，ru是向上舍入[到正无穷]，rd是向下舍入[到负无穷]。  std::floor
+        int16_t vy = __float2int_rd(gp.y * (VOXELSIZE_INV)); //向下取整
+        int16_t vz = __float2int_rd(gp.z * (VOXELSIZE_INV)); //向下取整
+        u64B4 center = gpu_kpara.center;
         vecs.x = (int8_t)(vx - center.x);
         vecs.y = (int8_t)(vy - center.y);
         vecs.z = (int8_t)(vz - center.z);
-
+        vecs.cnt = 0;
+        // auto p = kset.get();
+        kset[y * depth.cols + x] = vecs.u32;
         zin(y, x) = vecs.u32;
     }
 
@@ -446,8 +448,7 @@ namespace device
     //     scaled(y,x) =xp;// Dp * 0.0002f; //  / 1000.f; //meters
     // }
 
-    __device__ void Tnte::operator()(
-        struct Voxel32 **&dev_boxptr, struct kernelPara *&gpu_kpara, const Patch<PosType> &depthScaled)
+    __device__ void Tnte::operator()(struct Voxel32 **&dev_boxptr, struct kernelPara &gpu_kpara, const Patch<PosType> &depthScaled)
     {
         int pt_grid_x = threadIdx.x; // threadId 32
         int pt_grid_y = threadIdx.y; // threadId 32
@@ -459,11 +460,11 @@ namespace device
         {
             pbox->index.cnt = 32;
             for (int i = 0; i < 12; i++)
-                cam2base[i] = gpu_kpara->cam2base[i];
+                cam2base[i] = gpu_kpara.cam2base[i];
         }
         // float4 intr = make_float4(cam_K[0], cam_K[4], cam_K[2], cam_K[5]);
 
-        u64B4 center = gpu_kpara->center;
+        u64B4 center = gpu_kpara.center;
         __syncthreads();
         for (int pt_grid_z = 0; pt_grid_z < CUBEVOXELSIZE; pt_grid_z++)
         {
@@ -511,7 +512,7 @@ namespace device
             float weight_new = __fdividef(1.0f, (float)p.weight);
             p.tsdf = __fmaf_rd(p.tsdf, weight_old, dist) * weight_new;
 
-            uchar3 rgb_val = gpu_kpara->dev_rgbdata[pt_pix_y * im_width + pt_pix_x]; // pt->rgb[0];
+            uchar3 rgb_val = gpu_kpara.dev_rgbdata[pt_pix_y * im_width + pt_pix_x]; // pt->rgb[0];
 
             uint16_t mval = __fmaf_rd(p.color.x, weight_old, rgb_val.x) * weight_new;
             p.color.x = mval > 255 ? 255 : mval;
@@ -522,7 +523,7 @@ namespace device
         }
     }
 
-    __global__ void Integrate32F(struct Tnte fun, struct Voxel32 **dev_boxptr, struct kernelPara *gpu_kpara,
+    __global__ void Integrate32F(struct Tnte fun, struct Voxel32 **dev_boxptr, struct kernelPara gpu_kpara,
                                  const Patch<PosType> depthScaled)
     {
         fun(dev_boxptr, gpu_kpara, depthScaled);

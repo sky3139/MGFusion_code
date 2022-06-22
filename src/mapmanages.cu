@@ -16,7 +16,7 @@ mapmanages::mapmanages()
     ck(cudaMalloc((void **)&dev_boxpool, sizeof(struct Voxel32) * ALLL_NUM)); //申请GPU显存
     ck(cudaMemset(dev_boxpool, 0, sizeof(struct Voxel32) * ALLL_NUM));
     ck(cudaMallocManaged(&gpu_para, sizeof(struct exmatcloud_para)));
-
+    ck(cudaMalloc(&cpu_kpara.dev_rgbdata, sizeof(uchar3) * 640 * 480));
     checkCUDA(cudaGetLastError());
     for (int i = 0; i < ALLL_NUM; i++)
     {
@@ -27,7 +27,7 @@ mapmanages::mapmanages()
 void mapmanages::exmatcloud_bynum(cv::Mat &points, cv::Mat &color, u64B4 center)
 {
     // static bool allo=false;
-//    Timer tm("a");
+    //    Timer tm("a");
     // tm.Start();
     CUVector<struct Voxel32 *> g_use(gpu_pbox_use.size());
     g_use.upload(gpu_pbox_use.data(), gpu_pbox_use.size());
@@ -36,7 +36,7 @@ void mapmanages::exmatcloud_bynum(cv::Mat &points, cv::Mat &color, u64B4 center)
     struct ex_buf *gpu_buffer;
     ck(cudaMalloc((void **)&gpu_buffer, sizeof(ex_buf))); // 60 MB
     {
-     
+
         dim3 grid(g_use.len, 1, 1), block(32, 32, 1); // 设置参数
         device::extract_kernel<<<grid, block>>>(gpu_buffer, g_use, gpu_para);
         ck(cudaDeviceSynchronize());

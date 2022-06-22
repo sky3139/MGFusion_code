@@ -10,6 +10,7 @@
 #define DEPTHFACTOR (0.001f)
 
 #define VOXELSIZE CUBEVOXELSIZE * 0.01f
+#define VOXELSIZE_INV 3.125f
 
 /** \brief Camera intrinsics structure
  */
@@ -46,11 +47,11 @@ struct Intr
         float y = z * (v - cy) * finv.y;
         return make_float3(x, y, z);
     }
-    __device__ inline float2 Projector(const float3 &p) const
+    __device__ __forceinline__ uint2 Projector(const float3 &p) const
     {
-        float2 coo;
-        coo.x = __fmaf_rn(fx, __fdividef(p.x, p.z), cx);
-        coo.y = __fmaf_rn(fy, __fdividef(p.y, p.z), cy);
+        uint2 coo;
+        coo.x = __fmaf_rd(fx, __fdividef(p.x, p.z), cx);
+        coo.y = __fmaf_rd(fy, __fdividef(p.y, p.z), cy);
         return coo;
     }
 
@@ -307,7 +308,7 @@ struct kernelPara
         float4 pose[4];
     };
 
-    uchar3 dev_rgbdata[480 * 640];
+    uchar3 *dev_rgbdata; //[480 * 640];
 
     // uint16_t dev_depthdata[480 * 640];
 };

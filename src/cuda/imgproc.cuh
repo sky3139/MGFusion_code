@@ -1,5 +1,11 @@
 #pragma once
 #include <cuda_runtime_api.h>
+
+#include <thrust/functional.h>
+#include <thrust/device_vector.h>
+#include <thrust/unique.h>
+
+
 #include "device_array.hpp"
 #include "../app/cuVector.cuh"
 #include "datatype.cuh"
@@ -19,8 +25,8 @@ namespace device
     __global__ void compute_dists_kernel();
     void computeDists(const ushort *depth[], ushort *dists[], float2 finv, float2 c);
     __global__ void
-    scaleDepth(const Patch<unsigned short> depth, Patch<PosType> scaled, Patch<PosType> gcloud,
-               Patch<uint32_t> zin, float *campose, const Intr intr, u64B4 center);
+    scaleDepth( uint32_t *kset,const Patch<unsigned short> depth, Patch<PosType> scaled, Patch<PosType> gcloud,
+               Patch<uint32_t> zin,  const Intr intr, struct kernelPara gpu_kpara);
     __host__ void bilateralFilter(const Patch<unsigned short> &src, const Patch<unsigned short> &dst, int kernel_size,
                                   float sigma_spatial, float sigma_depth);
     __global__ void Integrate32(float4 intr,
@@ -49,7 +55,7 @@ namespace device
     __global__ void
     extract_kernel(ex_buf *output_base, struct Voxel32 *dev_pbox, exmatcloud_para *para);
     __global__ void update_loacl_index(struct Voxel32 **pboxmap, u64B4 src_center, u64B4 now_center, u32B4 *srcid, u32B4 *nowid, bool *mask);
-    __global__ void Integrate32F(struct Tnte fun, struct Voxel32 **dev_boxptr, struct kernelPara *gpu_kpara,
+    __global__ void Integrate32F(struct Tnte fun, struct Voxel32 **dev_boxptr, struct kernelPara gpu_kpara,
                                  const Patch<PosType> depthScaled);
 
     struct Tnte
@@ -60,7 +66,7 @@ namespace device
         float voxel_size;
         float trunc_margin;
         __device__ void operator()(
-            struct Voxel32 **&dev_boxptr, struct kernelPara *&gpu_kpara,
+            struct Voxel32 **&dev_boxptr, struct kernelPara &gpu_kpara,
             const Patch<PosType> &depthScaled);
     };
     //  void cloudToDepth(const Cloud& cloud, Depth& depth);
