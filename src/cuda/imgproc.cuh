@@ -39,7 +39,7 @@ namespace device
     cloud2grids_init(struct Voxel32 *pboxmap);
 
     __global__ void
-    extract_kernel(ex_buf *output_base, struct Voxel32 *dev_pbox, exmatcloud_para *para);
+    extract_kernel(ex_buf *output_base, CUVector<struct Voxel32 *> g_use, exmatcloud_para *para);
     __global__ void
     extract_kernel_test(Point3dim *output_base, struct Voxel32 *dev_pbox, exmatcloud_para *para);
 
@@ -49,7 +49,20 @@ namespace device
     __global__ void
     extract_kernel(ex_buf *output_base, struct Voxel32 *dev_pbox, exmatcloud_para *para);
     __global__ void update_loacl_index(struct Voxel32 **pboxmap, u64B4 src_center, u64B4 now_center, u32B4 *srcid, u32B4 *nowid, bool *mask);
+    __global__ void Integrate32F(struct Tnte fun, struct Voxel32 **dev_boxptr, struct kernelPara *gpu_kpara,
+                                 const Patch<PosType> depthScaled);
 
+    struct Tnte
+    {
+        float4 intr;
+        int im_height;
+        int im_width;
+        float voxel_size;
+        float trunc_margin;
+        __device__ void operator()(
+            struct Voxel32 **&dev_boxptr, struct kernelPara *&gpu_kpara,
+            const Patch<PosType> &depthScaled);
+    };
     //  void cloudToDepth(const Cloud& cloud, Depth& depth);
 
     //  void resizeDepthNormals(const Depth& depth, const Normals& normals, Depth& depth_out, Normals& normals_out);

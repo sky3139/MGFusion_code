@@ -356,7 +356,7 @@ namespace device
     //     vdev_pbox.index.type = val;
     // }
     __global__ void
-    extract_kernel(ex_buf *output_base, struct Voxel32 *dev_pbox, exmatcloud_para *para)
+    extract_kernel(ex_buf *output_base, CUVector<struct Voxel32 *> g_use, exmatcloud_para *para)
     {
         // printf("d:%d ,%f\n", *pos_index, device::devData);
         // device::devData += 2;
@@ -365,21 +365,33 @@ namespace device
         // __shared__  Point3dim *output_base; //
         // output_base = output;
 
-        if ((dev_pbox + blockId) == NULL)
+        if ((g_use.len <= blockId))
             return;
 
-        struct Voxel32 &vdev_pbox = dev_pbox[blockId];
+        struct Voxel32 *vdev_pbox = g_use[blockId];
         int pt_grid_x = threadIdx.x;
-        int pt_grid_y = threadIdx.y;
-        u32B4 index = vdev_pbox.index;
-        int8_t indexcnt = vdev_pbox.index.cnt;
+        int pt_grid_z = threadIdx.y;
+        u32B4 index = vdev_pbox->index;
+        __syncthreads();
+        uint8_t indexcnt = index.cnt;
+        if (indexcnt > 0 && pt_grid_x == 0 && pt_grid_z == 0)
+        {
+            //         if (asdasd != 0)
+            // printf("%d\n", asdasd);
+            vdev_pbox->index.cnt--;
+            // printf("aaaaaaa %d\n",vdev_pbox.index.cnt);//
+        }
 
-        for (int pt_grid_z = 0; pt_grid_z < 32; pt_grid_z++)
+        if (indexcnt != 0 && para->extall == false)
+            return;
+
+        for (int pt_grid_y = 0; pt_grid_y < 32; pt_grid_y++)
         {
             int volume_idx = pt_grid_z * 32 * 32 + pt_grid_y * 32 + pt_grid_x;
-            union voxel &voxel = vdev_pbox.pVoxel[volume_idx];
-            if (std::abs(voxel.tsdf) < 0.2f && voxel.weight > 0.50f)
+            union voxel voxel = vdev_pbox->pVoxel[volume_idx];
+            if (std::abs(voxel.tsdf) < 0.2f && voxel.weight > 0)
             {
+
                 unsigned int val = atomicInc(&para->dev_points_num, 0xffffff);
                 float3 &pos = output_base->pose[val];
                 uchar3 &_color = output_base->color[val];
@@ -390,9 +402,7 @@ namespace device
 
                 // if (vdev_pbox.index.cnt == 0)
                 {
-                    _color.x = voxel.rgb[0];
-                    _color.y = voxel.rgb[1];
-                    _color.z = voxel.rgb[2];
+                    _color = voxel.color;
                 }
                 // pos.rgb[0] = 255;//voxel.rgb[0];
                 // pos.rgb[1] = 255;//index.x;//voxel.rgb[1];
@@ -411,13 +421,6 @@ namespace device
                 //         _color.z = 0;   // index.x;//voxel.rgb[2];
                 //     }
             }
-        }
-        if (indexcnt > 0 && pt_grid_x == 0 && pt_grid_y == 0)
-        {
-            //         if (asdasd != 0)
-            // printf("%d\n", asdasd);
-            vdev_pbox.index.cnt--;
-            // printf("aaaaaaa %d\n",vdev_pbox.index.cnt);//
         }
     }
 
@@ -442,25 +445,24 @@ namespace device
 
     //     scaled(y,x) =xp;// Dp * 0.0002f; //  / 1000.f; //meters
     // }
-    __global__ void Integrate32(float4 intr,
-                                int im_height, int im_width,
-                                float voxel_size, float trunc_margin,
-                                struct Voxel32 **dev_boxptr, struct kernelPara *gpu_kpara,
-                                const Patch<PosType> depthScaled)
+
+    __device__ void Tnte::operator()(
+        struct Voxel32 **&dev_boxptr, struct kernelPara *&gpu_kpara, const Patch<PosType> &depthScaled)
     {
         int pt_grid_x = threadIdx.x; // threadId 32
         int pt_grid_y = threadIdx.y; // threadId 32
         int blockId = blockIdx.x;
         __shared__ float cam2base[12];
+        struct Voxel32 *pbox = dev_boxptr[blockId];
+        struct u32B4 u32 = pbox->index;
         if (0 == pt_grid_x && pt_grid_y == 0)
         {
+            pbox->index.cnt = 32;
             for (int i = 0; i < 12; i++)
                 cam2base[i] = gpu_kpara->cam2base[i];
         }
         // float4 intr = make_float4(cam_K[0], cam_K[4], cam_K[2], cam_K[5]);
 
-        struct Voxel32 *pbox = dev_boxptr[blockId];
-        struct u32B4 u32 = pbox->index;
         u64B4 center = gpu_kpara->center;
         __syncthreads();
         for (int pt_grid_z = 0; pt_grid_z < CUBEVOXELSIZE; pt_grid_z++)
@@ -518,7 +520,11 @@ namespace device
             mval = __fmaf_rd(p.color.z, weight_old, rgb_val.z) * weight_new;
             p.color.z = mval > 255 ? 255 : mval;
         }
-        // }
     }
 
+    __global__ void Integrate32F(struct Tnte fun, struct Voxel32 **dev_boxptr, struct kernelPara *gpu_kpara,
+                                 const Patch<PosType> depthScaled)
+    {
+        fun(dev_boxptr, gpu_kpara, depthScaled);
+    }
 }

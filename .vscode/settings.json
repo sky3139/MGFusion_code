@@ -127,6 +127,8 @@
         "observer_ptr": "cpp",
         "ref_ptr": "cpp",
         "affinity": "cpp",
-        "operationthread": "cpp"
+        "operationthread": "cpp",
+        "light": "cpp",
+        "object": "cpp"
     }
 }

@@ -2,7 +2,23 @@
 #include <cuda.h>
 #include <cassert>
 #include <iostream>
-#define ck(x) x
+#pragma once
+#include <cuda.h>
+#include <cassert>
+#include <iostream>
+#include "../cuda/safe_call.hpp"
+
+#define ck(val)                                                                                \
+    {                                                                                          \
+        if (val != cudaSuccess)                                                                \
+                                                                                               \
+        {                                                                                      \
+            printf("Error ：%s:%d , ", __FILE__, __LINE__);                                    \
+            printf("code : %d , reason : %s \n", cudaGetLastError(), cudaGetErrorString(val)); \
+            exit(-1);                                                                          \
+        }                                                                                      \
+    }
+    
 // struct Point
 // {
 //     T x, y, z;
@@ -147,10 +163,13 @@ struct Patch
     }
     void create(const int rows, const int cols)
     {
-        this->rows = rows;
-        this->cols = cols;
-        ck(cudaMallocPitch((void **)&devPtr, &pitch, cols * sizeof(T), rows));
-        ck(cudaMemset2D(devPtr, pitch, 0, sizeof(T) * cols, rows));
+        if (this->rows != rows)
+        {
+            this->rows = rows;
+            this->cols = cols;
+            ck(cudaMallocPitch((void **)&devPtr, &pitch, cols * sizeof(T), rows));
+            ck(cudaMemset2D(devPtr, pitch, 0, sizeof(T) * cols, rows));
+        }
     }
     //拷贝构造函数
     __host__ __device__ Patch(const Patch &lth)
@@ -169,36 +188,50 @@ struct Patch
     {
         cudaFree(devPtr);
     }
-    __host__ void upload(const T *host_ptr_arg, size_t host_step_arg)
+    __host__ cudaError_t upload(const T *host_ptr_arg, size_t host_step_arg)
     {
-        ck(cudaMemcpy2D(devPtr, pitch, host_ptr_arg, host_step_arg, cols * sizeof(T), rows, cudaMemcpyHostToDevice));
+        return (cudaMemcpy2D(devPtr, pitch, host_ptr_arg, host_step_arg, cols * sizeof(T), rows, cudaMemcpyHostToDevice));
     }
-    __host__ void download(const T *host_ptr_arg, size_t host_step_arg)
+    __host__ cudaError_t download(const T *host_ptr_arg, size_t host_step_arg)
     {
         // if (host_step_arg == 0 || devPtr == nullptr || pitch == 0)
         // {
         //     printf("%x,%d %x,%ld\n", host_ptr_arg, host_step_arg, devPtr, pitch);
         // }
-        ck(cudaMemcpy2D((void *)host_ptr_arg, host_step_arg, devPtr, pitch, sizeof(T) * cols, rows, cudaMemcpyDeviceToHost));
+        return (cudaMemcpy2D((void *)host_ptr_arg, host_step_arg, devPtr, pitch, sizeof(T) * cols, rows, cudaMemcpyDeviceToHost));
     }
-    __device__ inline T &operator()(int rows, int cols)
+    __device__ inline T &operator()(size_t rows, size_t cols)
     {
         return devPtr[rows * pitch / sizeof(T) + cols];
     }
-    const __device__ inline T &operator()(int rows, int cols) const
+    const __device__ inline T &operator()(size_t rows, size_t cols) const
     {
         return devPtr[rows * pitch / sizeof(T) + cols];
     }
-    __device__ inline T *get(int rows, int cols)
+    __device__ inline T *get(size_t rows, size_t cols)
     {
         // if (rows < pitch)
         //     return mat[x];
         return &devPtr[rows * pitch / sizeof(T) + cols];
     }
-
+    const __device__ inline T &operator[](const uint2 pos) const
+    {
+        return devPtr[pos.x * pitch / sizeof(T) + pos.y];
+    }
+    __device__ inline T &operator[](const uint2 pos)
+    {
+        return devPtr[pos.x * pitch / sizeof(T) + pos.y];
+    }
     __host__ void print()
     {
         printf("pitch=%ld rows=%ld cols=%ld\n", pitch, rows, cols);
+    }
+    __host__ T *getHostPtr()
+    {
+        T *p;
+        cudaMallocHost(&p, sizeof(T) * rows * cols);
+        download(p, sizeof(T) * cols);
+        return p;
     }
 };
 
@@ -208,7 +241,7 @@ struct CUVector
     T *devPtr;
     size_t len;
     unsigned int cnt;
-    CUVector()
+    CUVector() : len(0)
     {
     }
     CUVector(int len) : len(len)
@@ -218,7 +251,7 @@ struct CUVector
         // ck(cudaMallocManaged((void **)&cnt, sizeof(unsigned int)));
         // *cnt = 0;
     }
-    void creat(const int len)
+    void create(const int len)
     {
         if (this->len != len)
         {
@@ -243,23 +276,53 @@ struct CUVector
     {
         cudaFree(devPtr);
     }
-    // __host__ void upload(const T *host_ptr_arg, size_t host_step_arg)
-    // {
-    //     ck(cudaMemcpy2D(devPtr, pitch, host_ptr_arg, host_step_arg, cols * sizeof(T), rows, cudaMemcpyHostToDevice));
-    // }
-    __host__ void download(const T *host_ptr_arg, size_t host_step_arg)
+    void malloc(size_t host_step_arg)
+    {
+        if (host_step_arg > len)
+        {
+            len = host_step_arg;
+            printf("ma:%ld\n", len);
+            cudaFree(devPtr);
+            ck(cudaMalloc((void **)&devPtr, len * sizeof(T)));
+        }
+    }
+    __host__ cudaError_t upload(const T *host_ptr_arg, size_t host_step_arg)
+    {
+        // assert(host_step_arg <= len);
+
+        return (cudaMemcpy(devPtr, host_ptr_arg, host_step_arg * sizeof(T), cudaMemcpyHostToDevice));
+    }
+    __host__ cudaError_t download(const T *host_ptr_arg, size_t host_step_arg)
     {
         // if (host_step_arg == 0 || devPtr == nullptr || pitch == 0)
         // {
         //     printf("%x,%d %x,%ld\n", host_ptr_arg, host_step_arg, devPtr, pitch);
         // }
-        ck(cudaMemcpy((void *)host_ptr_arg, devPtr, host_step_arg, cudaMemcpyDeviceToHost));
+        assert(host_step_arg <= len);
+        // printf("%ld", host_step_arg * sizeof(T));
+        return (cudaMemcpy((void *)host_ptr_arg, devPtr, host_step_arg * sizeof(T), cudaMemcpyDeviceToHost));
     }
-    __device__ inline T &operator[](size_t len)
+    __device__ inline T &operator[](size_t _len)
     {
-        return devPtr[len];
+        assert(this->len >= _len);
+        return devPtr[_len];
     }
-
+    const __device__ inline T &operator[](size_t _len) const
+    {
+        assert(this->len >= _len);
+        return devPtr[_len];
+    }
+    __host__ T *data()
+    {
+        return devPtr;
+    }
+    __host__ T *getHostPtr()
+    {
+        T *p;
+        ck(cudaMallocHost(&p, sizeof(T) * len));
+        ck(download(p, len));
+        return p;
+    }
     // __device__ inline T *get(size_t rows, size_t cols)
     // {
     //     // if (rows < pitch)

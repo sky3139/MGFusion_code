@@ -244,7 +244,7 @@ struct TSDF
         mapmanages mm;
         cv::FileStorage fs("../config.yaml", cv::FileStorage::READ);
         parser = new DataSet<float>(fs["matpose"]);
-        gpu_cam_K=make_float4(parser->fx,parser->fy,parser->cx,parser->cy);
+        gpu_cam_K = make_float4(parser->fx, parser->fy, parser->cx, parser->cy);
         checkCUDA(cudaGetLastError());
 
         vector<struct Voxel32 *> host_boxptr(ACTIVATE_VOXNUM); // struct Voxel32 *[ACTIVATE_VOXNUM];
@@ -289,8 +289,17 @@ struct TSDF
         uint32_t *_32buf;
         ck(cudaMallocHost((void **)&_32buf, sizeof(u32B4) * 480 * 640));
         raycast ray;
+
+        struct device::Tnte fun;
+        fun.intr = gpu_cam_K;
+        fun.im_height = im_height;
+        fun.im_width = im_width;
+        fun.voxel_size = voxel_size;
+        fun.trunc_margin = trunc_margin;
+
         for (int frame_idx = 0; frame_idx < first_frame_idx + (int)num_frames; frame_idx += 1)
         {
+
             // std::cout << "frame_idx:" << frame_idx << std::endl;
             bool over_ = parser->ReadNextTUM(frame_idx);
             // parser->m_pose.val[3] -= 15.997225f;
@@ -327,6 +336,7 @@ struct TSDF
                 // computePointNormals(intr, depth_device_img, points_pyr, normals_pyr);
                 // renderImage(intr, depth_device_img, points_pyr, normals_pyr, imgcuda, host_32buf);
             }
+
             gocloud.download(host_points, 12 * 640); //当前帧的点云
             p_int.download(_32buf, sizeof(u32B4) * 640);
             std::set<uint32_t> set32(_32buf, _32buf + 480 * 640);
@@ -336,6 +346,7 @@ struct TSDF
             // cv::waitKey(1);
 
             ck(cudaMemcpy((void *)gpu_kpara, (void *)(&mm.cpu_kpara), sizeof(struct kernelPara), cudaMemcpyHostToDevice));
+            tm.PrintSeconds("a");
             int i = 0;
             for (std::set<uint32_t>::iterator it = set32.begin(); it != set32.end(); ++it)
             {
@@ -346,16 +357,18 @@ struct TSDF
                 {
                     host_boxptr[i] = mm.getidlebox(indexa);
                     (mm.pboxs)[indexa] = host_boxptr[i];
+
+                    u32B4 u32;
+                    u32.u32 = indexa;
+                    // u32.type = 0x1;
+
+                    ck(cudaMemcpyAsync((void *)&host_boxptr[i]->index, (void *)(&u32), sizeof(uint32_t), cudaMemcpyHostToDevice));
                 }
                 else //已经重建过
                 {
                     host_boxptr[i] = (mm.pboxs)[indexa];
                 }
-                u32B4 u32;
-                u32.u32 = indexa;
-                // u32.type = 0x1;
-                u32.cnt = 8;
-                ck(cudaMemcpyAsync((void *)&host_boxptr[i]->index, (void *)(&u32), sizeof(uint32_t), cudaMemcpyHostToDevice));
+
                 i++;
                 if (i >= ACTIVATE_VOXNUM - 2)
                     break;
@@ -365,11 +378,9 @@ struct TSDF
             //将需要处理的box地址拷贝到GPU
             ck(cudaMemcpy((void *)dev_boxptr, (void *)&host_boxptr[0], (i) * sizeof(struct Voxel32 *), cudaMemcpyHostToDevice));
             {
-                Timer t("inte");
                 dim3 grid(i, 1, 1), block(32, 32, 1); // 设置参数
-                device::Integrate32<<<grid, block>>>(gpu_cam_K,
-                                                     im_height, im_width, voxel_size, trunc_margin,
-                                                     dev_boxptr, gpu_kpara, depthScaled);
+                device::Integrate32F<<<grid, block>>>(fun,
+                                                      dev_boxptr, gpu_kpara, depthScaled);
                 ck(cudaDeviceSynchronize());
             }
 
@@ -378,16 +389,16 @@ struct TSDF
             //显示当前点云 true false
             if (show_cloud == 1)
             {
-                mm.exmatcloud(mm.cpu_kpara.center);
-                points = mm.curr_point;
-                color = mm.curr_color;
+                {
+                    // mm.exmatcloud(mm.cpu_kpara.center);
+                }
                 // parser->Mat_save_by_binary(points, cv::format("pc/%04d.point", frame_idx));
                 // parser->Mat_save_by_binary(color, cv::format("pc/%04d.color", frame_idx));
-                if (points.rows > 0)
-                    mp_v->inset_cloud("curr1", cv::viz::WCloud(points)); // color
+                // if (mm.curr_point.rows > 0)
+                //     mp_v->inset_cloud("curr1", cv::viz::WCloud(mm.curr_point)); // color
                 // cv::Affine3f affpose(cam_pose);
                 // mp_v->inset_depth(dep, cv::Affine3f::Identity());//affpose);//cv::Affine3f::Identity());
-                mp_v->inset_traj(parser->m_pose);
+                // mp_v->inset_traj(parser->m_pose);
                 // char key = cv::waitKey(0);
                 // cv::Mat bt = mp_v->getScreenshot();
                 // cv::imwrite("bt.png", bt);
@@ -402,10 +413,11 @@ struct TSDF
             // 移除
             if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 50 == 30)
             {
-
-                // mm.exmatcloud(mm.cpu_kpara.center);
-                if (mm.curr_point.rows > 0)
-                    mp_v->inset_cloud(cv::format("curr1%d", frame_idx), cv::viz::WCloud(mm.curr_point, mm.curr_color));
+                mm.gpu_para->extall = true;
+                mm.exmatcloud(mm.cpu_kpara.center);
+                mm.gpu_para->extall = false;
+                // if (mm.curr_point.rows > 0)
+                //     mp_v->inset_cloud(cv::format("curr1%d", frame_idx), cv::viz::WCloud(mm.curr_point, mm.curr_color));
 
                 u64B4 src_center = mm.cpu_kpara.center;
                 mm.cpu_kpara.center.x = std::floor(parser->m_pose.val[3] * 3.125f);
@@ -437,7 +449,8 @@ struct TSDF
             std::string debugtext = cv::format("Frame_id:%d remain box:%ld period:%.4f ms", frame_idx, mm.gpu_pbox_free.size(),
                                                tm.ElapsedMicroSeconds() * 0.001f);
             debugtext += cv::format(" cloudBoxs:%ld,cpu %ld", mm.mcps.mp_cpuVoxel32.size(), mm.gpu_pbox_free.size());
-            mp_v->setstring(debugtext);
+            // mp_v->setstring(debugtext);
+            cout << debugtext << endl;
 
             // ray.mgraycast_test(intr.cam,dev_boxptr, mp_v->getpose());
             // mm.save_tsdf_mode_grids("ab");

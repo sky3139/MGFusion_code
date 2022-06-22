@@ -182,8 +182,8 @@ int main()
     CUVector<uchar3> *img;
     cudaMallocManaged(&img, sizeof(CUVector<uchar3>));
     cudaMallocManaged(&gout, sizeof(CUVector<float3>));
-    gout->creat(300 * 300 * 90);
-    img->creat(300 * 300 * 90);
+    gout->create(300 * 300 * 90);
+    img->create(300 * 300 * 90);
 
     // cudaMemcpy(gout, &out, sizeof(CUVector<float3>), cudaMemcpyHostToDevice);
     ker<<<640, 480>>>(mhsh, gout, img, intr);

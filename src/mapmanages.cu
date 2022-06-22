@@ -15,6 +15,7 @@ mapmanages::mapmanages()
     struct Voxel32 srcbox;
     ck(cudaMalloc((void **)&dev_boxpool, sizeof(struct Voxel32) * ALLL_NUM)); //申请GPU显存
     ck(cudaMemset(dev_boxpool, 0, sizeof(struct Voxel32) * ALLL_NUM));
+    ck(cudaMallocManaged(&gpu_para, sizeof(struct exmatcloud_para)));
 
     checkCUDA(cudaGetLastError());
     for (int i = 0; i < ALLL_NUM; i++)
@@ -23,49 +24,35 @@ mapmanages::mapmanages()
     }
 }
 
-void mapmanages::exmatcloud_bynum(cv::Mat &points, cv::Mat &color, u64B4 center, struct Voxel32 *gpu_boxpool, int number)
+void mapmanages::exmatcloud_bynum(cv::Mat &points, cv::Mat &color, u64B4 center)
 {
     // static bool allo=false;
-    // Timer tm;
+//    Timer tm("a");
     // tm.Start();
-    struct exmatcloud_para *gpu_para;
-    // struct exmatcloud_para *host_para;
-
-    cudaMallocManaged(&gpu_para, sizeof(struct exmatcloud_para));
+    CUVector<struct Voxel32 *> g_use(gpu_pbox_use.size());
+    g_use.upload(gpu_pbox_use.data(), gpu_pbox_use.size());
+    gpu_para->dev_points_num = 0;
     gpu_para->center = center;
-
-    // std::cout<<sizeof(exmatcloud_para)<<std::endl;
-    // Point3dim *gpu_buffer;
     struct ex_buf *gpu_buffer;
-    // if(gpu_buffer==nullptr)
-    ck(cudaMallocManaged((void **)&gpu_buffer, sizeof(ex_buf))); // 120 MB
-    checkCUDA(cudaGetLastError());
-
-    // tm.Start();
-    dim3 grid(number, 1, 1), block(32, 32, 1); // 设置参数
-    device::extract_kernel<<<grid, block>>>(gpu_buffer, gpu_boxpool, gpu_para);
-    ck(cudaDeviceSynchronize());
-
-    // ck(cudaMemcpy((void *)host_para, (void *)(gpu_para), sizeof(exmatcloud_para), cudaMemcpyDeviceToHost)) ;
-    // tm.PrintSeconds(cv::format("%d",__LINE__));
-
-    // cudaMemcpy((void *)(&value), (void *)&device::pos_index, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+    ck(cudaMalloc((void **)&gpu_buffer, sizeof(ex_buf))); // 60 MB
+    {
+     
+        dim3 grid(g_use.len, 1, 1), block(32, 32, 1); // 设置参数
+        device::extract_kernel<<<grid, block>>>(gpu_buffer, g_use, gpu_para);
+        ck(cudaDeviceSynchronize());
+    }
     if (gpu_para->dev_points_num == 0)
     {
-        cudaFree(gpu_buffer);
-        checkCUDA(cudaGetLastError());
-        cudaFree(gpu_para);
-        checkCUDA(cudaGetLastError());
+        ck(cudaFree(gpu_buffer));
         return;
     }
+    points = cv::Mat(gpu_para->dev_points_num, 1, CV_32FC3); //, gpu_buffer->pose, gpu_buffer->color
+    color = cv::Mat(gpu_para->dev_points_num, 1, CV_8UC3);
+    ck(cudaMemcpy(points.ptr<float3>(), gpu_buffer->pose, sizeof(float3) * gpu_para->dev_points_num, cudaMemcpyDeviceToHost));
+    ck(cudaMemcpy(color.ptr<uchar3>(), gpu_buffer->color, sizeof(uchar3) * gpu_para->dev_points_num, cudaMemcpyDeviceToHost));
 
-    points = cv::Mat(gpu_para->dev_points_num, 1, CV_32FC3, &gpu_buffer->pose[0].x).clone();
-    color = cv::Mat(gpu_para->dev_points_num, 1, CV_8UC3, &gpu_buffer->color[0].x).clone();
-
-    cudaFree(gpu_buffer);
-    checkCUDA(cudaGetLastError());
-    cudaFree(gpu_para);
-    checkCUDA(cudaGetLastError());
+    ck(cudaFree(gpu_buffer));
+    g_use.release();
 }
 
 void Voxel32::tobuff_all_space(cv::Mat &points, cv::Mat &color, const u64B4 &center)
@@ -145,7 +132,7 @@ void mapmanages::exmatcloud(u64B4 center)
     }
     else
     {
-        exmatcloud_bynum(curr_point, curr_color, center, dev_boxpool, ALLL_NUM);
+        exmatcloud_bynum(curr_point, curr_color, center);
     }
 }
 void mapmanages::movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &dst, u64B4 &now_center)
@@ -215,7 +202,7 @@ void mapmanages::skiplistbox(cv::Mat &_points, cv::Mat &color, u64B4 &center)
         // delete cpu_box[i];
     }
     u64B4 u64;
-    exmatcloud_bynum(_points, color, u64, gpu_pbox, num);
+    exmatcloud_bynum(_points, color, u64);
     cudaFree(gpu_pbox);
     // std::vector<struct Voxel32 *>().swap(cpu_box);
     // checkCUDA(cudaGetLastError());

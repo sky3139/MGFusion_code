@@ -4,6 +4,8 @@
 #include <math_constants.h>
 #include "../cuda/vector_math.hpp"
 #include <opencv2/viz/vizcore.hpp>
+#include "../cuda/safe_call.hpp"
+
 // #include "safe_call.hpp"
 #define __kf_hdevice__ __host__ __device__ __forceinline__
 #define __kf_device__ __device__ __forceinline__

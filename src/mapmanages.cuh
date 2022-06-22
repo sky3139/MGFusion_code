@@ -27,6 +27,8 @@ class mapmanages
 private:
     struct Voxel32 *dev_boxpool; //已申请的ALLL_NUM个box空间的首地址
 public:
+    struct exmatcloud_para *gpu_para;
+
 public:
     // config
     bool use_skip_list = false;
@@ -44,7 +46,7 @@ public:
     struct kernelPara cpu_kpara;
     uint8_t tfidex = 0;
     void movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &src_center, u64B4 &now_center);
-    mapmanages();
+    mapmanages(void);
     // bool find_in_cpu_pbox_use(uint64_t idx, struct Voxel32 *&cpu_pbox)
     // {
     //     for (auto &it : cpu_pbox_use)
@@ -253,7 +255,7 @@ public:
         {
             if (i >= 4000)
             {
-                exmatcloud_bynum(_points, color, u64, gpu_pbox, 4000);
+                exmatcloud_bynum(_points, color, u64);
                 i = 0;
                 num -= 4000;
                 continue;
@@ -374,7 +376,7 @@ public:
 
         mcps.test(pt, color, expoints, excolor);
     }
-    static void exmatcloud_bynum(cv::Mat &_points, cv::Mat &color, u64B4 center, struct Voxel32 *gpu, int number);
+    void exmatcloud_bynum(cv::Mat &_points, cv::Mat &color, u64B4 center);
     void exmatcloud(u64B4 center);
 
     void save_tsdf_mode_grids(std::string name)

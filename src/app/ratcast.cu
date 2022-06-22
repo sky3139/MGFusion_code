@@ -4,6 +4,7 @@
 #include <math_constants.h>
 #include "main.hpp"
 #include <opencv2/viz/vizcore.hpp>
+#include "../cuda/safe_call.hpp"
 
 #pragma pack(push, 1)
 

@@ -76,8 +76,8 @@ struct u32B4;
 
 struct ex_buf
 {
-    uchar3 color[32 * 32 * 32 * 256];
-    float3 pose[32 * 32 * 32 * 256];
+    uchar3 color[32 * 32 * 32 * 128];
+    float3 pose[32 * 32 * 32 * 128];
 };
 union Point3dim
 {
@@ -313,8 +313,10 @@ struct kernelPara
 };
 struct exmatcloud_para
 {
+
     u64B4 center;
     unsigned int dev_points_num = 0;
+    bool extall;
     // uint8_t buf[512-8-4];
 };
 
