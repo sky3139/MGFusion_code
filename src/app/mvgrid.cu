@@ -229,6 +229,29 @@ struct kEqual
         return x > y; //&& (x.get<1>() == y.get<1>())
     }
 };
+__global__ void seta(uint32_t *ptr, CUVector<uint32_t> mzin, uint32_t *len)
+{
+    uint32_t last = ptr[0];
+    int tx = threadIdx.x;
+    // int tx = threadIdx.x;
+    int j = 0;
+    int sum = 48 * 64;
+    int base = tx * 48 * 64;
+    for (int i = 1 + base; i < sum + base; i++)
+    {
+        if (last == ptr[i])
+        {
+            continue;
+        }
+        unsigned int val = atomicInc(len, 0xffffff);
+        // len[val] = last;
+        mzin[val] = last;
+        last = ptr[i];
+    }
+    // printf("%d %d\n", j, len[val]);
+
+    // printf("%d %d\n", j, *len);
+}
 struct TSDF
 {
     float4 gpu_cam_K;
@@ -310,10 +333,18 @@ struct TSDF
         fun.trunc_margin = trunc_margin;
         thrust::device_vector<uint32_t> kset(640 * 480, 0);
         uint32_t *dv_ptr = thrust::raw_pointer_cast(kset.data());
+
+        thrust::device_vector<uint32_t> out(2048, 0);
+        uint32_t *outprt = thrust::raw_pointer_cast(out.data());
+        uint32_t *len;
+        (cudaMallocManaged((void **)&len, 4096 * sizeof(uint32_t)));
+        CUVector<uint32_t> mzin(4096);
         CBTInserter ci(ACTIVATE_VOXNUM);
         for (int frame_idx = 0; frame_idx < first_frame_idx + (int)num_frames; frame_idx += 1)
         {
-
+            tm.Start();
+            // ck(cudaMemset(len, 0, sizeof(uint32_t)));
+            len[4000] = 0;
             // std::cout << "frame_idx:" << frame_idx << std::endl;
             bool over_ = parser->ReadNextTUM(frame_idx);
             // parser->m_pose.val[3] -= 15.997225f;
@@ -343,16 +374,29 @@ struct TSDF
             dim3 grid_scale(divUp(parser->depth_src.cols, block_scale.x), divUp(parser->depth_src.rows, block_scale.y));
             // depthScaled.download(pnormal,sizeof(float3)*640);
             {
-                Timer t("sett");
+                // Timer t("sett");
                 device::scaleDepth<<<grid_scale, block_scale>>>(dv_ptr, depth_device_img, depthScaled, gocloud, p_int, intr, mm.cpu_kpara); //深度图预处理
                 ck(cudaGetLastError());
             }
-
+            uint32_t *aaaaa;
+            int k = 0;
+            std::set<uint32_t> *asdb;
             {
+                Timer t("sort");
+                thrust::sort(kset.begin(), kset.end());
+                seta<<<1, 100>>>(dv_ptr, mzin, &len[4000]);
+                ck(cudaDeviceSynchronize());
+                aaaaa = mzin.getHostPtr();
+                asdb = new std::set<uint32_t>(aaaaa, aaaaa + len[4000]);
+                // for (k = 0; k < len[4000]; k++)
+                // {
+                //     ci.insert(aaaaa[k]);
+                // }
                 // computePointNormals(intr, depth_device_img, points_pyr, normals_pyr);
                 // renderImage(intr, depth_device_img, points_pyr, normals_pyr, imgcuda, host_32buf);
             }
 
+            cout << "lem:" << len[4000] << endl;
             // gocloud.download(host_points, 12 * 640); //当前帧的点云
             p_int.download(_32buf, sizeof(u32B4) * 640);
 
@@ -360,13 +404,13 @@ struct TSDF
             // assert(0);
 
             // thrust::device_vector<uint32_t> host;
-            int k = 0;
-            tm.Start();
-            for (k = 0; k < 640 * 480; k++)
-            {
-                ci.insert(_32buf[k]);
-            }
-            tm.PrintSeconds("a");
+
+            // tm.Start();
+            // for (k = 0; k < 640 * 480; k++)
+            // {
+            //     ci.insert(_32buf[k]);
+            // }
+            // tm.PrintSeconds("a");
             // {
             //     Timer t("sett");
             //     std::set<uint32_t> set32(_32buf, _32buf + 640 * 480);
@@ -384,17 +428,27 @@ struct TSDF
             // mp_v->inset_depth2(asdp, cv::Affine3f::Identity());
             // cv::waitKey(1);
             int i = 0;
-
             // for (std::set<uint32_t>::iterator it = set32.begin(); it != set32.end(); ++it)
             // for (thrust::device_vector<uint32_t>::iterator it = kset.begin(); it != kvend; it++)
 
             // for (thrust::device_vector<uint32_t>::iterator it = kset.begin(); it != kvend; it++)
-            for (auto &it : ci.vals)
+            // int i=0;
+            // for (i = 0; i < len[4000]; i++)
+            // {
+            //     asd.insert(aaaaa[i]);
+            // }
+            for (auto &it : *asdb) // ci.vals)
+            // uint32_t last = 0;
+            // for (i = 0; i < len[4000]; i++)
             {
-                // cout << *it << endl;
+                //
+                // auto it = aaaaa[i];
                 uint32_t indexa = it & 0xffffff; // box相对坐标 取前24位
-                if (indexa == 0)                 //相机原点和无效深度点忽略，
+                if (indexa == 0)                 // || last == aaaaa[i])   //相机原点和无效深度点忽略，
                     continue;
+                // last = aaaaa[i];
+                // cout << aaaaa[i] << " " << it << endl;
+
                 if ((mm.pboxs)[indexa] == 0) //此空间未初始化，从记忆库拿
                 {
                     host_boxptr[i] = mm.getidlebox(indexa);
@@ -408,14 +462,17 @@ struct TSDF
                 }
                 else //已经重建过
                 {
+                    // if (host_boxptr[i] != (mm.pboxs)[indexa];)
+                    // {
+                    //
                     host_boxptr[i] = (mm.pboxs)[indexa];
+                    // }
                 }
-
                 i++;
                 if (i >= ACTIVATE_VOXNUM - 2)
                     break;
             }
-            cout << i << " " << aaacnt << " " << endl;
+            cout << "i=" << i << " " << aaacnt << " " << endl;
             assert(i != 0), assert(i < ACTIVATE_VOXNUM);
 
             //将需要处理的box地址拷贝到GPU
@@ -452,7 +509,7 @@ struct TSDF
             // atime[2] = ;
             // std::cout << tm.ElapsedMicroSeconds() << std::endl;
             // cudaStreamSynchronize();
-
+            cudaFreeHost(aaaaa);
             // 移除
             if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 50 == 30)
             {
