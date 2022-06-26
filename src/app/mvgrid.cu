@@ -298,6 +298,7 @@ struct bit
     {
         ck(cudaMalloc((void **)&d_bitmap, (1 + N / BITS_PER_WORD) * sizeof(maptype)));
         ck(cudaMallocHost((void **)&h_bitmap, (1 + N / BITS_PER_WORD) * sizeof(maptype)));
+        // d_bitmap = h_bitmap;
         clr();
     }
     inline __device__ __host__ void set(const uint32_t i)
@@ -426,13 +427,11 @@ public:
         fun.voxel_size = voxel_size;
         fun.trunc_margin = trunc_margin;
         thrust::device_vector<uint32_t> kset(640 * 480, 0);
-        uint32_t *dv_ptr; // = thrust::raw_pointer_cast(kset.data());
         uint32_t *hv_ptr; // = thrust::raw_pointer_cast(kset.data());
 
         thrust::device_vector<uint32_t> out(2048, 0);
         uint32_t *outprt = thrust::raw_pointer_cast(out.data());
         // uint32_t *zin_number;
-        (cudaMalloc((void **)&dv_ptr, 640 * 480 * sizeof(uint32_t)));
         (cudaMallocHost((void **)&hv_ptr, 640 * 480 * sizeof(uint32_t)));
 
         CBTInserter ci(ACTIVATE_VOXNUM);
@@ -470,7 +469,7 @@ public:
             dim3 grid_scale(divUp(parser->depth_src.cols, block_scale.x), divUp(parser->depth_src.rows, block_scale.y));
             // depthScaled.download(pnormal,sizeof(float3)*640);
             {
-                Timer seta2("scaleDepth");
+                // Timer seta2("cudaMemcpy");
                 device::scaleDepth<<<grid_scale, block_scale>>>(hv_ptr, depth_device_img, depthScaled, gocloud, intr, mm.cpu_kpara); //深度图预处理
                 ck(cudaDeviceSynchronize());
                 // ck(cudaMemcpy((void *)hv_ptr, dv_ptr, 640 * 480 * sizeof(uint32_t), cudaMemcpyDeviceToHost)); //上传位姿
@@ -480,10 +479,8 @@ public:
                 b.togpu();
                 readk<<<256, 256>>>(hv_ptr, b);
                 ck(cudaDeviceSynchronize());
-                // cout << hv_ptr[2000] << endl;
             }
-            //
-            // continue;
+            // cout << hv_ptr[2000] << endl;
             // computePointNormals(intr, depth_device_img, points_pyr, normals_pyr);
             // renderImage(intr, depth_device_img, points_pyr, normals_pyr, imgcuda, host_32buf);
 
@@ -554,7 +551,7 @@ public:
             mp_v->setstring(debugtext);
             // cout << debugtext << endl;
             //显示当前点云 true false
-            if (show_cloud == 1 && frame_idx % 50 == 30)
+            if (show_cloud == 1 || frame_idx % 50 == 30)
             {
                 {
                     mm.gpu_para->extall = true;
@@ -596,7 +593,7 @@ public:
                 // src_center.print();
                 // mm.cpu_kpara.center.print();
                 // DS_N.print();
-                mm.movenode_62(dev_boxptr, DS_N, mm.cpu_kpara.center);
+                mm.movenode_62(dev_boxptr, DS_N, mm.cpu_kpara.center);//转换坐标后在范围内就保留 不在范围内就移除，超过次数也移除
                 // mm.exmatcloud(mm.cpu_kpara.center);
                 // if (mm.curr_point.rows > 0)
                 //     mp_v->inset_cloud(cv::format("cu22%d", frame_idx), cv::viz::WCloud(mm.curr_point));//, mm.curr_color

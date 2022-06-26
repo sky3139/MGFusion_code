@@ -145,11 +145,11 @@ namespace device
             // color.push_back(cv::Vec3b(voxel.rgb[0], voxel.rgb[1], voxel.rgb[2]));
         }
     }
-    __global__ void update_loacl_index(struct Voxel32 **pboxmap, u64B4 dst, u64B4 now_center, u32B4 *srcid, u32B4 *nowid, bool *mask)
+    __global__ void update_loacl_index(struct Voxel32 **d_pbox_use, u64B4 dst, u64B4 now_center, u32B4 *srcid, u32B4 *nowid, bool *mask)
     {
         int blockId = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
 
-        struct Voxel32 *temp = pboxmap[blockId];
+        struct Voxel32 *temp = d_pbox_use[blockId];
         mask[blockId] = true;
         const u32B4 u32_src = temp->index;
         srcid[blockId] = temp->index;
