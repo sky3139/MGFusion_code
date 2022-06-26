@@ -19,7 +19,7 @@ public:
     std::mutex m_mutex;
     std::condition_variable m_cond;
     std::atomic_bool is_exit{true};
-    viewer()
+    viewer(int argc, char **argv)
     {
         window = new cv::viz::Viz3d("map");
         window->showWidget("Coordinate", cv::viz::WCoordinateSystem());

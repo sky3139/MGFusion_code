@@ -50,7 +50,6 @@ void mapmanages::exmatcloud_bynum(cv::Mat &points, cv::Mat &color, u64B4 center)
     color = cv::Mat(gpu_para->dev_points_num, 1, CV_8UC3);
     ck(cudaMemcpy(points.ptr<float3>(), gpu_buffer->pose, sizeof(float3) * gpu_para->dev_points_num, cudaMemcpyDeviceToHost));
     ck(cudaMemcpy(color.ptr<uchar3>(), gpu_buffer->color, sizeof(uchar3) * gpu_para->dev_points_num, cudaMemcpyDeviceToHost));
-
     ck(cudaFree(gpu_buffer));
     g_use.release();
 }

@@ -26,7 +26,7 @@ namespace device
     void computeDists(const ushort *depth[], ushort *dists[], float2 finv, float2 c);
     __global__ void
     scaleDepth( uint32_t *kset,const Patch<unsigned short> depth, Patch<PosType> scaled, Patch<PosType> gcloud,
-               Patch<uint32_t> zin,  const Intr intr, struct kernelPara gpu_kpara);
+               const Intr intr, struct kernelPara gpu_kpara);
     __host__ void bilateralFilter(const Patch<unsigned short> &src, const Patch<unsigned short> &dst, int kernel_size,
                                   float sigma_spatial, float sigma_depth);
     __global__ void Integrate32(float4 intr,

@@ -103,18 +103,23 @@ union voxel
         };
     };
 };
-union UPoints
-{
-    struct
-    {
-        union
-        {
-            float3 pos;
-            float xyz[3];
-        };
 
+struct UPoints
+{
+    union
+    {
+        float3 pos;
+        float xyz[3];
+    };
+    union
+    {
+        uchar3 color;
         uint8_t rgb[3];
     };
+    void print()
+    {
+        printf("%f %f %f %d %d %d\n", pos.x, pos.y, pos.z, color.x, color.y, color.z);
+    }
 };
 #define PosType float3
 struct u64B4;
@@ -323,7 +328,7 @@ struct exmatcloud_para
 
 struct ex_buf_
 {
-    union UPoints up[32 * 32 * 32];
+    UPoints up[32 * 32 * 32];
     // struct posevoxel pose[32 * 32 * 32];
 
     u64B4 center;

@@ -169,8 +169,8 @@ public:
             for (int i = 0; i < it->points.size(); i++)
             {
                 UPoints &up = it->points[i];
-                memcpy(ptf.val, (void *)up.xyz, sizeof(float) * 3);
-                memcpy(cob.val, (void *)up.rgb, sizeof(uint8_t) * 3);
+                memcpy(ptf.val, (void *)&up.xyz, sizeof(float) * 3);
+                memcpy(cob.val, (void *)&up.color, sizeof(uint8_t) * 3);
                 _points.push_back(ptf);
                 color.push_back(cob);
             }

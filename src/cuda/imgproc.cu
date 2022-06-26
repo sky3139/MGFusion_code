@@ -98,7 +98,7 @@ namespace device
 
                 unsigned int val = atomicInc(&point_buf[blockId].dev_points_num, 0xffffff);
 
-                union UPoints &up = point_buf[blockId].up[val];
+                UPoints &up = point_buf[blockId].up[val];
 
                 up.pos.x = (index.x + 1 * center.x) * VOXELSIZE + pt_grid_x * VOXELSIZE_PCUBE;
                 up.pos.y = (index.y + 1 * center.y) * VOXELSIZE + pt_grid_y * VOXELSIZE_PCUBE;
@@ -131,7 +131,7 @@ namespace device
 
             unsigned int val = atomicInc(&point_buf->dev_points_num, 0xffffff);
 
-            union UPoints &up = point_buf->up[val];
+            UPoints &up = point_buf->up[val];
 
             up.xyz[0] = (index.x + 1 * center.x) * VOXELSIZE + pt_grid_x * VOXELSIZE_PCUBE;
             up.xyz[1] = (index.y + 1 * center.y) * VOXELSIZE + pt_grid_y * VOXELSIZE_PCUBE;
@@ -184,7 +184,7 @@ namespace device
     cloud2grids(struct Voxel32 *pboxmap, UPoints *ps, size_t len_point)
     {
         int pt_grid_z = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
-        union UPoints &up = ps[pt_grid_z];
+        UPoints &up = ps[pt_grid_z];
         u32B4 u64;
         u64.x = std::floor(3.125f * up.xyz[0]);
         u64.y = std::floor(3.125f * up.xyz[1]);
@@ -215,13 +215,20 @@ namespace device
     }
     __global__ void
     scaleDepth(uint32_t *kset, const Patch<unsigned short> depth, Patch<PosType> scaled, Patch<PosType> gcloud,
-               Patch<uint32_t> zin, const Intr intr, struct kernelPara gpu_kpara)
+               const Intr intr, struct kernelPara gpu_kpara)
     {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
         if (x >= depth.cols || y >= depth.rows)
             return;
-        float Dp = depth(y, x) * intr.sca;
+
+        unsigned short dpval = depth(y, x);
+        if (dpval < 10)
+        {
+            kset[y * depth.cols + x] = 0;
+            return;
+        }
+        float Dp = dpval * intr.sca;
 
         PosType xp = intr.reprojector(x, y, Dp);
 
@@ -259,7 +266,6 @@ namespace device
         vecs.cnt = 0;
         // auto p = kset.get();
         kset[y * depth.cols + x] = vecs.u32;
-        zin(y, x) = vecs.u32;
     }
 
     //写论文测试用
@@ -395,17 +401,15 @@ namespace device
             {
 
                 unsigned int val = atomicInc(&para->dev_points_num, 0xffffff);
-                float3 &pos = output_base->pose[val];
-                uchar3 &_color = output_base->color[val];
+                // float3 &pos = output_base[val].pos;
+                output_base->color[val] = voxel.color;
 
-                pos.x = (index.x + para->center.x) * 0.32f + pt_grid_x * 0.01f;
-                pos.y = (index.y + para->center.y) * 0.32f + pt_grid_y * 0.01f;
-                pos.z = (index.z + para->center.z) * 0.32f + pt_grid_z * 0.01f;
-
+                output_base->pose[val].x = (index.x + para->center.x) * 0.32f + pt_grid_x * 0.01f;
+                output_base->pose[val].y = (index.y + para->center.y) * 0.32f + pt_grid_y * 0.01f;
+                output_base->pose[val].z = (index.z + para->center.z) * 0.32f + pt_grid_z * 0.01f;
+                // assert(0);
                 // if (vdev_pbox.index.cnt == 0)
-                {
-                    _color = voxel.color;
-                }
+
                 // pos.rgb[0] = 255;//voxel.rgb[0];
                 // pos.rgb[1] = 255;//index.x;//voxel.rgb[1];
                 // pos.rgb[2] = 255;//index.x;//voxel.rgb[2];

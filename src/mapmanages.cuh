@@ -41,6 +41,7 @@ public:
     mappoints mcps;
     std::stack<struct Voxel32 *> gpu_pbox_free; //记录空闲的box在GPU中的地址
     std::vector<struct Voxel32 *> gpu_pbox_use; //记录已经使用的box在GPU中的地址
+    std::vector<UPoints> *upints;               //记录已经使用的box在GPU中的地址
 
     cv::Mat points, color;
     struct kernelPara cpu_kpara;
@@ -394,6 +395,34 @@ public:
         std::cout << gpu_pbox_use.size() << std::endl;
         file.close();
     }
+    void save_xyzrbg(std::string name)
+    {
+        std::fstream file(cv::format("%s.bin", name.c_str()), std::ios::out | std::ios::binary); // | ios::app
+        file.write(reinterpret_cast<char *>(upints->data()), upints->size() * sizeof(UPoints));
+        file.close();
+    }
+    void SaveVoxelGrid2SurfacePointCloud(const std::string &file_name)
+    {
+        FILE *fp = fopen(cv::format("%s.ply", file_name.c_str()).c_str(), "w");
+        fprintf(fp, "ply\n");
+        fprintf(fp, "format binary_little_endian 1.0\n");
+        fprintf(fp, "element vertex %ld\n", upints->size());
+        fprintf(fp, "property float x\n");
+        fprintf(fp, "property float y\n");
+        fprintf(fp, "property float z\n");
+        fprintf(fp, "property uchar red\n");
+        fprintf(fp, "property uchar green\n");
+        fprintf(fp, "property uchar blue\n");
+        fprintf(fp, "end_header\n");
+        // Create point cloud content for ply file
+        // for (int i = 0; i < upints.size(); i++)
+        // {
+        fwrite(upints->data(), sizeof(UPoints), upints->size(), fp);
+
+        //     }
+        // }
+        fclose(fp);
+    }
 };
 //释放
 // for (size_t k = 0; k < 0xffffff; k++)
@@ -430,53 +459,6 @@ public:
 // }
 
 //   // Compute surface points from TSDF voxel grid and save points to point cloud file
-// void
-// SaveVoxelGrid2SurfacePointCloud(const std::string &file_name)
-// {
-//     int num_pts = 0;
-//     for (int i = 0; i < voxel_grid_dim_x * voxel_grid_dim_y * voxel_grid_dim_z; i++)
-//         if (std::abs(hp_tsdf[i].tsdf) < tsdf_thresh && hp_tsdf[i].weight > weight_thresh)
-//             num_pts++;
-
-//     // Create header for .ply file
-//     FILE *fp = fopen(file_name.c_str(), "w");
-//     fprintf(fp, "ply\n");
-//     fprintf(fp, "format binary_little_endian 1.0\n");
-//     fprintf(fp, "element vertex %d\n", num_pts);
-//     fprintf(fp, "property float x\n");
-//     fprintf(fp, "property float y\n");
-//     fprintf(fp, "property float z\n");
-//     fprintf(fp, "property uchar red\n");
-//     fprintf(fp, "property uchar green\n");
-//     fprintf(fp, "property uchar blue\n");
-//     fprintf(fp, "end_header\n");
-//     // Create point cloud content for ply file
-//     for (int i = 0; i < voxel_grid_dim_x * voxel_grid_dim_y * voxel_grid_dim_z; i++)
-//     {
-
-//         // If TSDF value of voxel is less than some threshold, add voxel coordinates to point cloud
-//         if (std::abs(hp_tsdf[i].tsdf) < tsdf_thresh && hp_tsdf[i].weight > weight_thresh)
-//         {
-
-//             // Compute voxel indices in int for higher positive number range
-//             int z = floor(i / (voxel_grid_dim_x * voxel_grid_dim_y));
-//             int y = floor((i - (z * voxel_grid_dim_x * voxel_grid_dim_y)) / voxel_grid_dim_x);
-//             int x = i - (z * voxel_grid_dim_x * voxel_grid_dim_y) - (y * voxel_grid_dim_x);
-
-//             // Convert voxel indices to float, and save coordinates to ply file
-//             float pt_base_x = voxel_grid_origin_x + (float)x * voxel_size;
-//             float pt_base_y = voxel_grid_origin_y + (float)y * voxel_size;
-//             float pt_base_z = voxel_grid_origin_z + (float)z * voxel_size;
-//             fwrite(&pt_base_x, sizeof(float), 1, fp);
-//             fwrite(&pt_base_y, sizeof(float), 1, fp);
-//             fwrite(&pt_base_z, sizeof(float), 1, fp);
-//             fwrite(&(hp_tsdf[i].rgb[0]), sizeof(uint8_t), 1, fp);
-//             fwrite(&(hp_tsdf[i].rgb[1]), sizeof(uint8_t), 1, fp);
-//             fwrite(&(hp_tsdf[i].rgb[2]), sizeof(uint8_t), 1, fp);
-//         }
-//     }
-//     fclose(fp);
-// }
 
 /* std::cout << " Create header for .ply file " << 0 << std::endl;
         FILE *fp = fopen("m.ply", "w");
