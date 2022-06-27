@@ -215,7 +215,7 @@ namespace device
     }
     __global__ void
     scaleDepth(uint32_t *kset, const Patch<unsigned short> depth, Patch<PosType> scaled, Patch<PosType> gcloud,
-               const Intr intr, struct kernelPara gpu_kpara)
+               const Intr intr, struct kernelPara gpu_kpara, uint32_t *bitmap)
     {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -266,6 +266,9 @@ namespace device
         vecs.cnt = 0;
         // auto p = kset.get();
         kset[y * depth.cols + x] = vecs.u32;
+        uint32_t *p = &bitmap[vecs.u32 >> 5];
+        uint32_t val = (1 << (vecs.u32 & 0x1f));
+        atomicOr(p, val);
     }
 
     //写论文测试用
@@ -406,7 +409,7 @@ namespace device
                     // float3 &pos = output_base[val].pos;
 
                     // output_base->color[val] = voxel.color;
-                    // else 
+                    // else
                     output_base->color[val] = make_uchar3(0, 255, 0);
                     output_base->pose[val].x = (index.x + para->center.x) * 0.32f + pt_grid_x * 0.01f;
                     output_base->pose[val].y = (index.y + para->center.y) * 0.32f + pt_grid_y * 0.01f;

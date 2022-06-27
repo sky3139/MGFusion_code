@@ -311,7 +311,7 @@ void mapmanages::SaveVoxelGrid2SurfacePointCloud(const std::string &file_name)
     fprintf(fp, "property uchar green\n");
     fprintf(fp, "property uchar blue\n");
     fprintf(fp, "end_header\n");
-    // Create point cloud content for ply file
+    cout << file_name << ":" << all_point[0].rows << endl;
     for (int i = 0; i < all_point[0].rows; i++)
     {
         fwrite(all_point[0].ptr<cv::Vec3f>(i, 0), sizeof(float), 3, fp);

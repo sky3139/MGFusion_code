@@ -5,7 +5,6 @@
 #include <thrust/device_vector.h>
 #include <thrust/unique.h>
 
-
 #include "device_array.hpp"
 #include "../app/cuVector.cuh"
 #include "datatype.cuh"
@@ -24,9 +23,8 @@ namespace device
     //  void computePointNormals(const Intr& intr, const Depth& depth, Cloud& points, Normals& normals);
     __global__ void compute_dists_kernel();
     void computeDists(const ushort *depth[], ushort *dists[], float2 finv, float2 c);
-    __global__ void
-    scaleDepth( uint32_t *kset,const Patch<unsigned short> depth, Patch<PosType> scaled, Patch<PosType> gcloud,
-               const Intr intr, struct kernelPara gpu_kpara);
+    __global__ void scaleDepth(uint32_t *kset, const Patch<unsigned short> depth, Patch<PosType> scaled, Patch<PosType> gcloud,
+                               const Intr intr, struct kernelPara gpu_kpara, uint32_t *bitmap);
     __host__ void bilateralFilter(const Patch<unsigned short> &src, const Patch<unsigned short> &dst, int kernel_size,
                                   float sigma_spatial, float sigma_depth);
     __global__ void Integrate32(float4 intr,
