@@ -1,4 +1,5 @@
 #include "mapmanages.cuh"
+using namespace std;
 // #include <opencv2/highgui/highgui.hpp>
 mapmanages::mapmanages()
 {
@@ -36,7 +37,6 @@ void mapmanages::exmatcloud_bynum(cv::Mat &points, cv::Mat &color, u64B4 center)
     struct ex_buf *gpu_buffer;
     ck(cudaMalloc((void **)&gpu_buffer, sizeof(ex_buf))); // 60 MB
     {
-
         dim3 grid(g_use.len, 1, 1), block(32, 32, 1); // 设置参数
         device::extract_kernel<<<grid, block>>>(gpu_buffer, g_use, gpu_para);
         ck(cudaDeviceSynchronize());
@@ -134,6 +134,68 @@ void mapmanages::exmatcloud(u64B4 center)
         exmatcloud_bynum(curr_point, curr_color, center);
     }
 }
+void mapmanages::move2center(u64B4 &dst, u64B4 &src_center, u64B4 &now_center)
+{
+    struct Voxel32 **cpu_pbox = (struct Voxel32 **)calloc(CURR_BOX_NUM, sizeof(struct Voxel32 *));
+
+    int number = gpu_pbox_use.size();
+    cout << gpu_pbox_use.size() << endl;
+    struct Voxel32 srcbox;
+    for (int i = number - 1; i >= 0; i--)
+    {
+        // cudaMemcpy(&srcbox, gpu_pbox_use[i], sizeof(struct Voxel32), cudaMemcpyDeviceToHost);
+
+        u64B4 now_local;
+        u32B4 u32_src;
+        ck(cudaMemcpy((void *)&u32_src, (void *)&gpu_pbox_use[i]->index, sizeof(uint32_t), cudaMemcpyDeviceToHost));
+
+        now_local.x = u32_src.x + dst.x;
+        now_local.y = u32_src.y + dst.y;
+        now_local.z = u32_src.z + dst.z;
+        if ((abs(now_local.x) > 60) || (abs(now_local.y) > 60) || (abs(now_local.z) > 60))
+        {
+            SaveVoxelGrid2SurfacePointCloud(cv::format("pc/%d", 0));
+
+            assert(0);
+        }
+        u32B4 u32new = u32_src;
+        u32new.x = now_local.x;
+        u32new.y = now_local.y;
+        u32new.z = now_local.z;
+        u32new.cnt = u32_src.cnt;
+        // u32_src.print();
+        // u32new.print();
+        cpu_pbox[u32new.u32 & 0xffffff] = gpu_pbox_use[i];
+        ck(cudaMemcpy((void *)&gpu_pbox_use[i]->index, (void *)(&u32new), sizeof(uint32_t), cudaMemcpyHostToDevice));
+    }
+    free(pboxs), pboxs = cpu_pbox;
+}
+void mapmanages::movenode_6_28(u64B4 &dst, u64B4 &src_center, u64B4 &now_center)
+{
+    int number = gpu_pbox_use.size();
+    // cout << gpu_pbox_use.size() << endl;
+    struct Voxel32 srcbox;
+    // std::vector<bool> guse_bak(gpu_pbox_use.size());
+    // int cnnn = 0;
+    for (int i = number - 1; i >= 0; i--)
+    {
+        if (gpu_para->mask[i] == true) //该移除的
+        {
+            // cnnn++;
+            cudaMemcpy(&srcbox, gpu_pbox_use[i], sizeof(struct Voxel32), cudaMemcpyDeviceToHost);
+            u32B4 u32_src = srcbox.index;
+            srcbox.tobuff(all_point[0], all_point[1], src_center);
+            cudaMemset(gpu_pbox_use[i], 0, sizeof(struct Voxel32));
+            gpu_pbox_free.push(gpu_pbox_use[i]);
+            gpu_pbox_use[i] = gpu_pbox_use.back();
+            pboxs[u32_src.u32 & 0xffffff] = 0;
+            gpu_pbox_use.pop_back();
+            continue;
+        } //该保留，移动中心
+    }
+    // cout << cnnn << " " << gpu_pbox_use.size() << endl;
+    // free(pboxs), pboxs = cpu_pbox;
+}
 void mapmanages::movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &dst, u64B4 &now_center)
 {
     Timer t("movenode_62");
@@ -218,7 +280,67 @@ void mapmanages::skiplistbox(cv::Mat &_points, cv::Mat &color, u64B4 &center)
     // cudaFree(gpu_pbox);
     // std::vector<struct Voxel32 *>().swap(cpu_box);
 }
+void mapmanages::resetnode()
+{
+    struct Voxel32 srcbox;
+    cudaStream_t stream;
+    cudaStreamCreate(&stream);
+    // std::cout << "size=" << gpu_pbox_use.size() << " " << 0 << std::endl;
+    for (int i = 0; i < gpu_pbox_use.size(); i++)
+    {
+        cudaMemcpyAsync((void *)(gpu_pbox_use[i]), (void *)(&srcbox), sizeof(struct Voxel32), cudaMemcpyHostToDevice, stream);
+        checkCUDA(cudaGetLastError());
+        gpu_pbox_free.push(gpu_pbox_use[i]);
+    }
+    std::vector<struct Voxel32 *>().swap(gpu_pbox_use);
+    memset(pboxs, 0, sizeof(struct Voxel32 *) * CURR_BOX_NUM);
+    ck(cudaStreamSynchronize(stream));
+    cudaStreamDestroy(stream);
+}
+void mapmanages::SaveVoxelGrid2SurfacePointCloud(const std::string &file_name)
+{
 
+    FILE *fp = fopen(cv::format("%s.ply", file_name.c_str()).c_str(), "w");
+    fprintf(fp, "ply\n");
+    fprintf(fp, "format binary_little_endian 1.0\n");
+    fprintf(fp, "element vertex %ld\n", all_point[0].rows);
+    fprintf(fp, "property float x\n");
+    fprintf(fp, "property float y\n");
+    fprintf(fp, "property float z\n");
+    fprintf(fp, "property uchar red\n");
+    fprintf(fp, "property uchar green\n");
+    fprintf(fp, "property uchar blue\n");
+    fprintf(fp, "end_header\n");
+    // Create point cloud content for ply file
+    for (int i = 0; i < all_point[0].rows; i++)
+    {
+        fwrite(all_point[0].ptr<cv::Vec3f>(i, 0), sizeof(float), 3, fp);
+        fwrite(all_point[1].ptr<cv::Vec3b>(i, 0), sizeof(uchar), 3, fp);
+
+        //     }
+    }
+    fclose(fp);
+}
+// FILE *fp = fopen(cv::format("%s.ply", file_name.c_str()).c_str(), "w");
+// fprintf(fp, "ply\n");
+// fprintf(fp, "format binary_little_endian 1.0\n");
+// fprintf(fp, "element vertex %ld\n", upints->size());
+// fprintf(fp, "property float x\n");
+// fprintf(fp, "property float y\n");
+// fprintf(fp, "property float z\n");
+// fprintf(fp, "property uchar red\n");
+// fprintf(fp, "property uchar green\n");
+// fprintf(fp, "property uchar blue\n");
+// fprintf(fp, "end_header\n");
+// // Create point cloud content for ply file
+// // for (int i = 0; i < upints.size(); i++)
+// // {
+// fwrite(upints->data(), sizeof(UPoints), upints->size(), fp);
+
+// //     }
+// // }
+// fclose(fp);
+// }
 // mapmanages::~mapmanages()
 // {
 // }

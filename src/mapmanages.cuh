@@ -8,7 +8,6 @@
 #include "cuda/imgproc.cuh"
 #include "cuda/skiplist.h"
 #include <functional>
-
 #include "tsdf.cuh"
 #include <queue>
 #include <stack>
@@ -20,7 +19,7 @@
 
 #define CURR_BOX_NUM (0xffffff)
 // 2048
-#define ALLL_NUM 2048 * 2
+#define ALLL_NUM 2048 *2
 
 class mapmanages
 {
@@ -32,7 +31,7 @@ public:
 public:
     // config
     bool use_skip_list = false;
-
+    cv::Mat all_point[4]; //, curr_color;
     cv::Mat curr_point, curr_color;
     // std::vector<struct Voxel32 *> pboxs;
     struct Voxel32 **pboxs; //已申请的CURR_BOX_NUM个地址
@@ -47,6 +46,8 @@ public:
     struct kernelPara cpu_kpara;
     uint8_t tfidex = 0;
     void movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &src_center, u64B4 &now_center);
+    void movenode_6_28(u64B4 &src_center, u64B4 &src, u64B4 &now_center);
+
     mapmanages(void);
     // bool find_in_cpu_pbox_use(uint64_t idx, struct Voxel32 *&cpu_pbox)
     // {
@@ -139,23 +140,8 @@ public:
         //     delete pbox;
         // }
     }
-    void resetnode()
-    {
-        struct Voxel32 srcbox;
-        cudaStream_t stream;
-        cudaStreamCreate(&stream);
-        // std::cout << "size=" << gpu_pbox_use.size() << " " << 0 << std::endl;
-        for (int i = 0; i < gpu_pbox_use.size(); i++)
-        {
-            cudaMemcpyAsync((void *)(gpu_pbox_use[i]), (void *)(&srcbox), sizeof(struct Voxel32), cudaMemcpyHostToDevice, stream);
-            checkCUDA(cudaGetLastError());
-            gpu_pbox_free.push(gpu_pbox_use[i]);
-        }
-        std::vector<struct Voxel32 *>().swap(gpu_pbox_use);
-        memset(pboxs, 0, sizeof(struct Voxel32 *) * CURR_BOX_NUM);
-        ck(cudaStreamSynchronize(stream));
-        cudaStreamDestroy(stream);
-    }
+    void resetnode();
+
     void movenode(u64B4 &center)
     {
         struct Voxel32 srcbox;
@@ -401,28 +387,9 @@ public:
         file.write(reinterpret_cast<char *>(upints->data()), upints->size() * sizeof(UPoints));
         file.close();
     }
-    void SaveVoxelGrid2SurfacePointCloud(const std::string &file_name)
-    {
-        FILE *fp = fopen(cv::format("%s.ply", file_name.c_str()).c_str(), "w");
-        fprintf(fp, "ply\n");
-        fprintf(fp, "format binary_little_endian 1.0\n");
-        fprintf(fp, "element vertex %ld\n", upints->size());
-        fprintf(fp, "property float x\n");
-        fprintf(fp, "property float y\n");
-        fprintf(fp, "property float z\n");
-        fprintf(fp, "property uchar red\n");
-        fprintf(fp, "property uchar green\n");
-        fprintf(fp, "property uchar blue\n");
-        fprintf(fp, "end_header\n");
-        // Create point cloud content for ply file
-        // for (int i = 0; i < upints.size(); i++)
-        // {
-        fwrite(upints->data(), sizeof(UPoints), upints->size(), fp);
+    void SaveVoxelGrid2SurfacePointCloud(const std::string &file_name);
 
-        //     }
-        // }
-        fclose(fp);
-    }
+    void move2center(u64B4 &dst, u64B4 &src_center, u64B4 &now_center);
 };
 //释放
 // for (size_t k = 0; k < 0xffffff; k++)
@@ -522,17 +489,5 @@ public:
             // {
             // }
         }
-        std::cout << num2 << std::endl;
-        //    std:: string str=cv::format("element vertex %d\n",num2);
-        //     ModifyLineData("m.ply",,str);
-        fclose(fp);
-        // TSDF 拷贝到CPU
-
-        // cudaMemcpy(hp_tsdf, dp_TSDF, voxel_grid_dim_x * voxel_grid_dim_y * voxel_grid_dim_z * sizeof(voxel), cudaMemcpyDeviceToHost);
-        // checkCUDA(cudaGetLastError());
-        // std::cout << "Saving surface point cloud (tsdf.ply)..." << std::endl;
-        // SaveVoxelGrid2SurfacePointCloud("m.ply", voxel_grid_dim_x, voxel_grid_dim_y, voxel_grid_dim_z,
-        //                                 voxel_size, voxel_grid_origin_x, voxel_grid_origin_y, voxel_grid_origin_z,
-        //                                 0.2f, 0.0f, hp_tsdf);
 
         */

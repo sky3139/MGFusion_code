@@ -468,7 +468,6 @@ struct TSDF
                 mm.save_tsdf_mode_grids(fs["matpose"]);
                 mm.exmatcloud(mm.cpu_kpara.center);
                 string savename = string(fs["matpose"]) + "ours_new.ply";
-                exmatcloudply222(savename, mm.curr_point, mm.curr_color);
 
                 // mm.savetoply("out.ply");
                 // parser->Mat_save_by_binary(points, cv::format("pc/%04d.point", frame_idx));

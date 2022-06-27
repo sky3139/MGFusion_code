@@ -124,7 +124,7 @@ struct u32B4
 
     __host__ void print()
     {
-        printf("%d %d %d\n", x, y, z);
+        printf("u32:%d %d %d\n", x, y, z);
     }
     __device__ __host__ u32B4() : u32(0){};
 
@@ -156,7 +156,7 @@ public:
     }
     __host__ void print()
     {
-        printf("%d %d %d\n", x, y, z);
+        printf("u64:%d %d %d\n", x, y, z);
     }
 };
 #define CUBEVOXELSIZE (32)

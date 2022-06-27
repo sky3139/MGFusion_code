@@ -469,7 +469,6 @@ struct TSDF
             if (!over_)
             {
                 mm.exmatcloud(mm.cpu_kpara.center);
-                exmatcloudply222("out.ply", mm.curr_point, mm.curr_color);
                 // mm.savetoply("out.ply");
                 // parser->Mat_save_by_binary(points, cv::format("pc/%04d.point", frame_idx));
                 // parser->Mat_save_by_binary(color, cv::format("pc/%04d.color", frame_idx));

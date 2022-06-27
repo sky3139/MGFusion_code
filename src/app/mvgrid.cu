@@ -436,7 +436,7 @@ public:
 
         CBTInserter ci(ACTIVATE_VOXNUM);
         struct bit b;
-        for (int frame_idx = 0; frame_idx < first_frame_idx + (int)num_frames; frame_idx += 1)
+        for (int frame_idx = 30; frame_idx < first_frame_idx + (int)num_frames; frame_idx += 1)
         {
             // std::cout << "frame_idx:" << frame_idx << std::endl;
             bool over_ = parser->ReadNextTUM(frame_idx);
@@ -446,16 +446,16 @@ public:
             if (!over_)
             {
                 // cout << "over" << endl;
-                mm.save_tsdf_mode_grids(fs["matpose"]);
-                mm.exmatcloud(mm.cpu_kpara.center);
-                string savename = string(fs["matpose"]) + "ours_new.ply";
-                // exmatcloudply222(savename, mm.curr_point, mm.curr_color);
+                // mm.save_tsdf_mode_grids(fs["matpose"]);
+                // mm.exmatcloud(mm.cpu_kpara.center);
+                // string savename = string(fs["matpose"]) + "ours_new.ply";
                 // mm.savetoply("out.ply");
                 // parser->Mat_save_by_binary(points, cv::format("pc/%04d.point", frame_idx));
                 // parser->Mat_save_by_binary(color, cv::format("pc/%04d.color", frame_idx));
                 // if (points.rows > 0)
                 //     mp_v->inset_cloud("curr", cv::viz::WCloud(points, color));
                 // cv::Affine3f affpose(cam_pose);
+                mm.SaveVoxelGrid2SurfacePointCloud(cv::format("pc/over%d", frame_idx));
                 break;
             }
             tm.Start();
@@ -469,16 +469,27 @@ public:
             dim3 grid_scale(divUp(parser->depth_src.cols, block_scale.x), divUp(parser->depth_src.rows, block_scale.y));
             // depthScaled.download(pnormal,sizeof(float3)*640);
             {
-                // Timer seta2("cudaMemcpy");
-                device::scaleDepth<<<grid_scale, block_scale>>>(hv_ptr, depth_device_img, depthScaled, gocloud, intr, mm.cpu_kpara); //深度图预处理
-                ck(cudaDeviceSynchronize());
+                    Timer seta2("gpuread");
+
+                {
+
+                    // Timer seta2("scaleDepth");
+                    device::scaleDepth<<<grid_scale, block_scale>>>(hv_ptr, depth_device_img, depthScaled, gocloud, intr, mm.cpu_kpara); //深度图预处理
+                    ck(cudaDeviceSynchronize());
+                }
                 // ck(cudaMemcpy((void *)hv_ptr, dv_ptr, 640 * 480 * sizeof(uint32_t), cudaMemcpyDeviceToHost)); //上传位姿
-                for (int i = 0; i < 640 * 480; i++)
-                    b.set(hv_ptr[i]);
-                hv_ptr[2000] = 0;
-                b.togpu();
-                readk<<<256, 256>>>(hv_ptr, b);
-                ck(cudaDeviceSynchronize());
+                {
+                    // Timer seta2("cpuset");
+                    for (int i = 0; i < 640 * 480; i++)
+                        b.set(hv_ptr[i]);
+                }
+
+                {
+                    hv_ptr[2000] = 0;
+                    b.togpu();
+                    readk<<<256, 256>>>(hv_ptr, b);
+                    ck(cudaDeviceSynchronize());
+                }
             }
             // cout << hv_ptr[2000] << endl;
             // computePointNormals(intr, depth_device_img, points_pyr, normals_pyr);
@@ -538,6 +549,7 @@ public:
             //将需要处理的box地址拷贝到GPU
             ck(cudaMemcpy((void *)dev_boxptr, (void *)&host_boxptr[0], (i) * sizeof(struct Voxel32 *), cudaMemcpyHostToDevice));
             {
+
                 dim3 grid(i, 1, 1), block(32, 32, 1); // 设置参数
                 device::Integrate32F<<<grid, block>>>(fun,
                                                       dev_boxptr, mm.cpu_kpara, depthScaled);
@@ -546,10 +558,10 @@ public:
             // ci.reset();
 
             std::string debugtext = cv::format("Frame_id:%d remain box:%ld period:%.4f ms", frame_idx, mm.gpu_pbox_free.size(),
-                                               tm.ElapsedMicroSeconds() * 0.001f);
-            debugtext += cv::format(" cloudBoxs:%ld,cpu %ld", mm.mcps.mp_cpuVoxel32.size(), mm.gpu_pbox_free.size());
-            mp_v->setstring(debugtext);
-            // cout << debugtext << endl;
+                                               tm.ElapsedMicroSeconds() * 0.001f) +
+                                    cv::format(" cloudBoxs:%ld,cpu %ld", mm.mcps.mp_cpuVoxel32.size(), mm.gpu_pbox_free.size());
+            // mp_v->setstring(debugtext);
+            cout << debugtext << endl;
             //显示当前点云 true false
             if (show_cloud == 1 || frame_idx % 50 == 30)
             {
@@ -558,48 +570,71 @@ public:
                     mm.exmatcloud(mm.cpu_kpara.center);
                 }
                 // if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 50 == 30)
-                //     mm.SaveVoxelGrid2SurfacePointCloud(cv::format("pc/%d", frame_idx));
+
                 // parser->Mat_save_by_binary(points, cv::format("pc/%04d.point", frame_idx));
                 // parser->Mat_save_by_binary(color, cv::format("pc/%04d.color", frame_idx));
-                if (mm.curr_point.rows > 0)
-                    mp_v->inset_cloud("curr1", cv::viz::WCloud(mm.curr_point, mm.curr_color)); // color
+
+                // if (mm.all_point[2].rows > 0)
+                //     mp_v->inset_cloud("all2", cv::viz::WCloud(mm.all_point[2], cv::viz::Color::blue())); // color
                 // cv::Affine3f affpose(cam_pose);
                 // mp_v->inset_depth(dep, cv::Affine3f::Identity());//affpose);//cv::Affine3f::Identity());
-                mp_v->inset_traj(parser->m_pose);
+                // mp_v->inset_traj(parser->m_pose);
                 // char key = cv::waitKey(0);
                 // cv::Mat bt = mp_v->getScreenshot();
                 // cv::imwrite("bt.png", bt);
                 // string savename = string(fs["matpose"]) + "ours_new22.ply";
-                // exmatcloudply222(savename, mm.curr_point, mm.curr_color);
             }
+            if (mm.gpu_pbox_free.size() < 500 || frame_idx % 50 == 30)
+            {
+                u64B4 src_center = mm.cpu_kpara.center;
+                mm.cpu_kpara.center.x = 10; // std::floor(parser->m_pose.val[3] * 3.125f);
+                mm.cpu_kpara.center.y = 0;  // std::floor(parser->m_pose.val[7] * 3.125f);
+                mm.cpu_kpara.center.z = 0;  // std::floor(parser->m_pose.val[11] * 3.125f);
+                u64B4 DS_N = src_center - mm.cpu_kpara.center;
+                mm.movenode_6_28(DS_N, src_center, mm.cpu_kpara.center); //转换坐标后在范围内就保留 不在范围内就移除，超过次数也移除
+
+                mm.move2center(DS_N, src_center, mm.cpu_kpara.center);
+
+                // if (mm.curr_point.rows > 0)
+
+                //     mp_v->inset_cloud("curr1", cv::viz::WCloud(mm.curr_point, mm.curr_color)); // cv::viz::Color::red())); // color
+
+                // if (mm.all_point[0].rows > 0)
+                // mm.SaveVoxelGrid2SurfacePointCloud(cv::format("pc/%d", frame_idx));
+                // {
+                //     mp_v->inset_cloud("all", cv::viz::WCloud(mm.all_point[0], mm.all_point[1])); // cv::viz::Color::blue())); //  color
+                //     // while(1){}
+                // }
+            }
+
             // atime[2] = ;
             // std::cout << tm.ElapsedMicroSeconds() << std::endl;
             // cudaStreamSynchronize();
             // cudaFreeHost(aaaaa);
             // 移除
-            if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 50 == 30)
-            {
-                // mm.gpu_para->extall = true;
-                // mm.exmatcloud(mm.cpu_kpara.center);
-                // mm.gpu_para->extall = false;
-                // if (mm.curr_point.rows > 0)
-                //     mp_v->inset_cloud(cv::format("curr1%d", frame_idx), cv::viz::WCloud(mm.curr_point, mm.curr_color));
+            // if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 50 == 30)
+            // {
+            //     // mm.gpu_para->extall = true;
+            //     // mm.exmatcloud(mm.cpu_kpara.center);
+            //     // mm.gpu_para->extall = false;
+            //     // if (mm.curr_point.rows > 0)
+            //     //     mp_v->inset_cloud(cv::format("curr1%d", frame_idx), cv::viz::WCloud(mm.curr_point, mm.curr_color));
 
-                u64B4 src_center = mm.cpu_kpara.center;
-                mm.cpu_kpara.center.x = std::floor(parser->m_pose.val[3] * 3.125f);
-                mm.cpu_kpara.center.y = std::floor(parser->m_pose.val[7] * 3.125f);
-                mm.cpu_kpara.center.z = std::floor(parser->m_pose.val[11] * 3.125f);
-                u64B4 DS_N = src_center - mm.cpu_kpara.center;
-                // src_center.print();
-                // mm.cpu_kpara.center.print();
-                // DS_N.print();
-                mm.movenode_62(dev_boxptr, DS_N, mm.cpu_kpara.center);//转换坐标后在范围内就保留 不在范围内就移除，超过次数也移除
-                // mm.exmatcloud(mm.cpu_kpara.center);
-                // if (mm.curr_point.rows > 0)
-                //     mp_v->inset_cloud(cv::format("cu22%d", frame_idx), cv::viz::WCloud(mm.curr_point));//, mm.curr_color
+            //     u64B4 src_center = mm.cpu_kpara.center;
+            //     mm.cpu_kpara.center.x =0;// std::floor(parser->m_pose.val[3] * 3.125f);
+            //     mm.cpu_kpara.center.y =0;//  std::floor(parser->m_pose.val[7] * 3.125f);
+            //     mm.cpu_kpara.center.z = 0;// std::floor(parser->m_pose.val[11] * 3.125f);
+            //     u64B4 DS_N = src_center - mm.cpu_kpara.center;
+            //     src_center.print();
+            //     mm.cpu_kpara.center.print();
+            //     DS_N.print();
+            //     mm.movenode_6_28(DS_N, src_center, mm.cpu_kpara.center); //转换坐标后在范围内就保留 不在范围内就移除，超过次数也移除
+            //     // mm.exmatcloud(mm.cpu_kpara.center);
+            //     // if (mm.curr_point.rows > 0)
+            //     //     mp_v->inset_cloud(cv::format("cu22%d", frame_idx), cv::viz::WCloud(mm.curr_point));//, mm.curr_color
 
-                mm.resetnode();
-            }
+            //     // mm.resetnode();
+            // }
             //     // std::cout<<""<<atime[1]<<","<<atime[0]<<std::endl;
             // }
 

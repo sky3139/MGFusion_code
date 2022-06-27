@@ -141,8 +141,9 @@ struct u32B4
 
     __host__ void print()
     {
-        printf("%d %d %d\n", x, y, z);
+        printf("u32:%d %d %d %d\n", x, y, z,cnt);
     }
+
     __device__ __host__ u32B4(uint32_t _u = 0) : u32(_u){};
     __host__ __device__ friend u64B4 operator+(const u32B4 &u32, u64B4 u64);
 };
@@ -169,9 +170,14 @@ public:
         x = (u32.x), y = (u32.y), z = (u32.z);
         _rev = 0;
     }
-    __host__ void print()
+   __host__ void print()
     {
-        printf("%d %d %d\n", x, y, z);
+        printf("u64:%d %d %d\n", x, y, z);
+    }
+    __host__ __device__ u32B4 tou32B4()
+    {
+        u32B4 ans;
+        ans.x =(int8_t) x, ans.y =(int8_t) y, ans.z = (int8_t) z;
     }
 };
 
@@ -323,6 +329,7 @@ struct exmatcloud_para
     u64B4 center;
     unsigned int dev_points_num = 0;
     bool extall;
+    bool mask[2048];
     // uint8_t buf[512-8-4];
 };
 

@@ -382,6 +382,7 @@ namespace device
         u32B4 index = vdev_pbox->index;
         __syncthreads();
         uint8_t indexcnt = index.cnt;
+        para->mask[blockId] = indexcnt < 2 ? true : false;
         if (indexcnt > 0 && pt_grid_x == 0 && pt_grid_z == 0)
         {
             //         if (asdasd != 0)
@@ -399,14 +400,19 @@ namespace device
             union voxel voxel = vdev_pbox->pVoxel[volume_idx];
             if (std::abs(voxel.tsdf) < 0.2f && voxel.weight > 0)
             {
+                if (indexcnt > 1)
+                {
+                    unsigned int val = atomicInc(&para->dev_points_num, 0xffffff);
+                    // float3 &pos = output_base[val].pos;
 
-                unsigned int val = atomicInc(&para->dev_points_num, 0xffffff);
-                // float3 &pos = output_base[val].pos;
-                output_base->color[val] = voxel.color;
+                    // output_base->color[val] = voxel.color;
+                    // else 
+                    output_base->color[val] = make_uchar3(0, 255, 0);
+                    output_base->pose[val].x = (index.x + para->center.x) * 0.32f + pt_grid_x * 0.01f;
+                    output_base->pose[val].y = (index.y + para->center.y) * 0.32f + pt_grid_y * 0.01f;
+                    output_base->pose[val].z = (index.z + para->center.z) * 0.32f + pt_grid_z * 0.01f;
+                }
 
-                output_base->pose[val].x = (index.x + para->center.x) * 0.32f + pt_grid_x * 0.01f;
-                output_base->pose[val].y = (index.y + para->center.y) * 0.32f + pt_grid_y * 0.01f;
-                output_base->pose[val].z = (index.z + para->center.z) * 0.32f + pt_grid_z * 0.01f;
                 // assert(0);
                 // if (vdev_pbox.index.cnt == 0)
 
@@ -462,7 +468,7 @@ namespace device
         struct u32B4 u32 = pbox->index;
         if (0 == pt_grid_x && pt_grid_y == 0)
         {
-            pbox->index.cnt = 32;
+            pbox->index.cnt = 8;
             for (int i = 0; i < 12; i++)
                 cam2base[i] = gpu_kpara.cam2base[i];
         }
