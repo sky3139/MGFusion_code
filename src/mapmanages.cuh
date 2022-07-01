@@ -19,7 +19,7 @@
 
 #define CURR_BOX_NUM (0xffffff)
 // 2048
-#define ALLL_NUM 2048 
+#define ALLL_NUM 2048*2 
 
 class mapmanages
 {

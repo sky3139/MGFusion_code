@@ -437,7 +437,7 @@ public:
 
         CBTInserter ci(ACTIVATE_VOXNUM);
         struct bit b;
-        for (int frame_idx = 30; frame_idx < first_frame_idx + (int)num_frames; frame_idx += 1)
+        for (int frame_idx = 0; frame_idx <  parser->pose.frames-1; frame_idx += 1)
         {
             // std::cout << "frame_idx:" << frame_idx << std::endl;
             bool over_ = parser->ReadNextTUM(frame_idx);
@@ -456,6 +456,9 @@ public:
                 // if (points.rows > 0)
                 //     mp_v->inset_cloud("curr", cv::viz::WCloud(points, color));
                 // cv::Affine3f affpose(cam_pose);
+                    //           mm.gpu_para->extall = true;
+                    // mm.exmatcloud(mm.cpu_kpara.center);
+
                 mm.SaveVoxelGrid2SurfacePointCloud(cv::format("pc/over%d", frame_idx));
                 cout << cv::format("pc/over%d", frame_idx) << endl;
                 break;
@@ -524,11 +527,7 @@ public:
                 }
                 else //已经重建过
                 {
-                    // if (host_boxptr[i] != (mm.pboxs)[indexa];)
-                    // {
-                    //
                     host_boxptr[i] = (mm.pboxs)[indexa];
-                    // }
                 }
                 i++;
                 if (i >= ACTIVATE_VOXNUM - 2)
@@ -556,10 +555,10 @@ public:
             //显示当前点云 true false
             if (show_cloud == 1 || frame_idx % 50 == 30)
             {
-                {
+                // {
                     mm.gpu_para->extall = true;
                     mm.exmatcloud(mm.cpu_kpara.center);
-                }
+                // }
                 // // if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 50 == 30)
                 // if (mm.curr_point.rows > 0)
                 //     mp_v->inset_cloud("curr1", cv::viz::WCloud(mm.curr_point, mm.curr_color)); // cv::viz::Color::red())); // color
@@ -579,6 +578,9 @@ public:
             }
             if (mm.gpu_pbox_free.size() < 500 || frame_idx % 50 == 30)
             {
+                    //      mm.gpu_para->extall = true;
+                    // mm.exmatcloud(mm.cpu_kpara.center);
+
                 u64B4 src_center = mm.cpu_kpara.center;
                 mm.cpu_kpara.center.x = std::floor(parser->m_pose.val[3] * 3.125f);
                 mm.cpu_kpara.center.y = std::floor(parser->m_pose.val[7] * 3.125f);
