@@ -19,7 +19,7 @@
 
 #define CURR_BOX_NUM (0xffffff)
 // 2048
-#define ALLL_NUM 2048*2 
+#define ALLL_NUM 2048 * 2
 
 class mapmanages
 {
@@ -47,6 +47,7 @@ public:
     uint8_t tfidex = 0;
     void movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &src_center, u64B4 &now_center);
     void movenode_6_28(u64B4 &src_center, u64B4 &src, u64B4 &now_center);
+    void saveallnode();
 
     mapmanages(void);
     // bool find_in_cpu_pbox_use(uint64_t idx, struct Voxel32 *&cpu_pbox)

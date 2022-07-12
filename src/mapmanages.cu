@@ -297,9 +297,21 @@ void mapmanages::resetnode()
     ck(cudaStreamSynchronize(stream));
     cudaStreamDestroy(stream);
 }
+void mapmanages::saveallnode()
+{
+    struct Voxel32 srcbox;
+    for (int i = 0; i < gpu_pbox_use.size(); i++)
+    {
+        cudaMemcpy(&srcbox, gpu_pbox_use[i], sizeof(struct Voxel32), cudaMemcpyDeviceToHost);
+        u32B4 u32_src = srcbox.index;
+        srcbox.tobuff(all_point[0], all_point[1], cpu_kpara.center);
+    }
+    std::vector<struct Voxel32 *>().swap(gpu_pbox_use);
+    memset(pboxs, 0, sizeof(struct Voxel32 *) * CURR_BOX_NUM);
+    
+}
 void mapmanages::SaveVoxelGrid2SurfacePointCloud(const std::string &file_name)
 {
-
     FILE *fp = fopen(cv::format("%s.ply", file_name.c_str()).c_str(), "w");
     fprintf(fp, "ply\n");
     fprintf(fp, "format binary_little_endian 1.0\n");

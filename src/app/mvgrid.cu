@@ -437,7 +437,7 @@ public:
 
         CBTInserter ci(ACTIVATE_VOXNUM);
         struct bit b;
-        for (int frame_idx = 0; frame_idx <  parser->pose.frames-1; frame_idx += 1)
+        for (int frame_idx = 0; frame_idx < parser->pose.frames - 1; frame_idx += 1)
         {
             // std::cout << "frame_idx:" << frame_idx << std::endl;
             bool over_ = parser->ReadNextTUM(frame_idx);
@@ -456,11 +456,12 @@ public:
                 // if (points.rows > 0)
                 //     mp_v->inset_cloud("curr", cv::viz::WCloud(points, color));
                 // cv::Affine3f affpose(cam_pose);
-                    //           mm.gpu_para->extall = true;
-                    // mm.exmatcloud(mm.cpu_kpara.center);
-
+                //           mm.gpu_para->extall = true;
+                // mm.exmatcloud(mm.cpu_kpara.center);
+                mm.saveallnode();
                 mm.SaveVoxelGrid2SurfacePointCloud(cv::format("pc/over%d", frame_idx));
                 cout << cv::format("pc/over%d", frame_idx) << endl;
+                assert(0);
                 break;
             }
             tm.Start();
@@ -489,7 +490,6 @@ public:
             // computePointNormals(intr, depth_device_img, points_pyr, normals_pyr);
             // renderImage(intr, depth_device_img, points_pyr, normals_pyr, imgcuda, host_32buf);
 
-            // gocloud.download(host_points, 12 * 640); //当前帧的点云
             // for (k = 0; k < 640 * 480; k++)
             //     ci.insert(_32buf[k]);
             // tm.PrintSeconds("a");
@@ -502,6 +502,7 @@ public:
             //     set3222.insert(*it);
             // }
             // // 当前深度图 点云
+            //  gocloud.download(host_points, 12 * 640); //当前帧的点云
             // cv::Mat asdp(480 * 640, 1, CV_32FC3, &host_points[0].x);
             // mp_v->inset_depth2(asdp, cv::Affine3f::Identity());
             // cv::waitKey(1);
@@ -556,8 +557,8 @@ public:
             if (show_cloud == 1 || frame_idx % 50 == 30)
             {
                 // {
-                    mm.gpu_para->extall = true;
-                    mm.exmatcloud(mm.cpu_kpara.center);
+                // mm.gpu_para->extall = true;
+                // mm.exmatcloud(mm.cpu_kpara.center);
                 // }
                 // // if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 50 == 30)
                 // if (mm.curr_point.rows > 0)
@@ -578,8 +579,8 @@ public:
             }
             if (mm.gpu_pbox_free.size() < 500 || frame_idx % 50 == 30)
             {
-                    //      mm.gpu_para->extall = true;
-                    // mm.exmatcloud(mm.cpu_kpara.center);
+                     mm.gpu_para->extall = true;
+                mm.exmatcloud(mm.cpu_kpara.center);
 
                 u64B4 src_center = mm.cpu_kpara.center;
                 mm.cpu_kpara.center.x = std::floor(parser->m_pose.val[3] * 3.125f);
@@ -591,7 +592,7 @@ public:
                 mm.move2center(DS_N, src_center, mm.cpu_kpara.center);
 
                 // if (mm.all_point[0].rows > 0)
-                // // mm.SaveVoxelGrid2SurfacePointCloud(cv::format("pc/%d", frame_idx));
+                //     // mm.SaveVoxelGrid2SurfacePointCloud(cv::format("pc/%d", frame_idx));
                 //     mp_v->inset_cloud("all", cv::viz::WCloud(mm.all_point[0], mm.all_point[1])); // cv::viz::Color::blue())); //  color
             }
 
@@ -658,9 +659,11 @@ public:
             //     assert(0);
             // }
         }
-        mm.SaveVoxelGrid2SurfacePointCloud(cv::format("pc/ov"));
-
+        mm.saveallnode();
+        string save_p=fs["matpose"];
+        mm.SaveVoxelGrid2SurfacePointCloud(save_p+cv::format("/mgfusion"));
         fs.release();
+        assert(0);
         // mp_v->pthd.join();
         // exmatcloudply(points, color);
     }
