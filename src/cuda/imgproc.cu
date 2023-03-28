@@ -228,7 +228,7 @@ namespace device
             kset[y * depth.cols + x] = 0;
             return;
         }
-        float Dp = dpval * intr.sca;
+        float Dp = (dpval-1000) * intr.sca;
 
         PosType xp = intr.reprojector(x, y, Dp);
 
@@ -403,17 +403,18 @@ namespace device
             union voxel voxel = vdev_pbox->pVoxel[volume_idx];
             if (std::abs(voxel.tsdf) < 0.2f && voxel.weight > 0)
             {
-                if (indexcnt > 1)
+                // if (indexcnt > 1)
                 {
                     unsigned int val = atomicInc(&para->dev_points_num, 0xffffff);
                     // float3 &pos = output_base[val].pos;
 
-                    // output_base->color[val] = voxel.color;
-                    // else
-                    output_base->color[val] = make_uchar3(0, 255, 0);
-                    output_base->pose[val].x = (index.x + para->center.x) * 0.32f + pt_grid_x * 0.01f;
-                    output_base->pose[val].y = (index.y + para->center.y) * 0.32f + pt_grid_y * 0.01f;
-                    output_base->pose[val].z = (index.z + para->center.z) * 0.32f + pt_grid_z * 0.01f;
+                    output_base->color[val] = voxel.color;
+                    // else                        vec[0] = (index.x + 1 * center.x) * VOXELSIZE + pt_grid_x * VOXELSIZE_PCUBE;
+
+                    // output_base->color[val] = make_uchar3(0, 255, 0);
+                    output_base->pose[val].x = (index.x + para->center.x) * VOXELSIZE+ pt_grid_x * VOXELSIZE_PCUBE;
+                    output_base->pose[val].y = (index.y + para->center.y) * VOXELSIZE + pt_grid_y * VOXELSIZE_PCUBE;
+                    output_base->pose[val].z = (index.z + para->center.z) * VOXELSIZE+ pt_grid_z * VOXELSIZE_PCUBE;
                 }
 
                 // assert(0);
@@ -482,9 +483,9 @@ namespace device
         for (int pt_grid_z = 0; pt_grid_z < CUBEVOXELSIZE; pt_grid_z++)
         {
             // 计算小体素的世界坐标
-            float pt_base_x = (u32.x + center.x) * VOXELSIZE + pt_grid_x * voxel_size;
-            float pt_base_y = (u32.y + center.y) * VOXELSIZE + pt_grid_y * voxel_size;
-            float pt_base_z = (u32.z + center.z) * VOXELSIZE + pt_grid_z * voxel_size;
+            float pt_base_x = (u32.x + center.x) * VOXELSIZE + pt_grid_x * VOXELSIZE_PCUBE;
+            float pt_base_y = (u32.y + center.y) * VOXELSIZE + pt_grid_y * VOXELSIZE_PCUBE;
+            float pt_base_z = (u32.z + center.z) * VOXELSIZE + pt_grid_z * VOXELSIZE_PCUBE;
 
             //计算体素在相机坐标系的坐标
             float tmp_pt[3] = {0};
@@ -508,7 +509,7 @@ namespace device
             PosType img_dep = depthScaled(pt_pix_y, pt_pix_x); // meters
 
             // float img_dep = img_depu * 0.001f; //pt->xyz;//
-            if (img_dep.z <= 0.2 || img_dep.z > 6)
+            if (img_dep.z <= 0.2 ) //|| img_dep.z > 6)
                 continue;
             float diff = img_dep.z - pt_cam_z;
             if (diff <= -trunc_margin)

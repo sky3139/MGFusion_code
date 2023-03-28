@@ -109,4 +109,9 @@ public:
         std::unique_lock<std::mutex> _Lock(m_mutex);
         return window->getViewerPose();
     }
+        void setpose(const Affine3f &pose)
+    {
+        std::unique_lock<std::mutex> _Lock(m_mutex);
+         window->setViewerPose(pose);
+    }
 };

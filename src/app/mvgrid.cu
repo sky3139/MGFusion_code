@@ -6,8 +6,6 @@
 #include "cuda/datatype.cuh"
 #include <iostream>
 #include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
 #include <opencv2/viz.hpp>
 #include <opencv2/calib3d.hpp>
 #include "mapmanages.cuh"
@@ -28,6 +26,8 @@
 #include "../tool/tree.h"
 using namespace std;
 
+int im_width = 1241; // 743;// 640;
+int im_height = 376; // 465;//480;、
 struct Reprojector
 {
     Reprojector() {}
@@ -75,9 +75,9 @@ __global__ void points_normals_kernel(const Reprojector reproj, const Patch<usho
         return;
 
     // // //mm -> meters
-    float z00 = depth(y, x) * 0.0002f;
-    float z01 = depth(y, x + 1) * 0.0002f;
-    float z10 = depth(y + 1, x) * 0.0002f;
+    float z00 = depth(y, x) * 0.001f;
+    float z01 = depth(y, x + 1) * 0.001f;
+    float z10 = depth(y + 1, x) * 0.001f;
 
     if (z00 * z01 * z10 != 0)
     {
@@ -145,9 +145,9 @@ __global__ void render_image_kernel(const Patch<ushort> depth, const Patch<float
 
         float3 N = make_float3(v4.x, v4.y, v4.z);
 
-        const float Ka = 0.3f; // ambient coeff
-        const float Kd = 0.5f; // diffuse coeff
-        const float Ks = 0.2f; // specular coeff
+        const float Ka = 0.7f; // ambient coeff  环境系数 
+        const float Kd = 0.3f; // diffuse coeff  扩散系数 
+        const float Ks = 0.7f; // specular coeff 镜面反射系数
         const float n = 20.f;  // specular power
 
         const float Ax = 1.f; // ambient color,  can be RGB
@@ -214,10 +214,10 @@ void renderImage(const Intr &intr, const Patch<unsigned short> &depth,
     render_image_kernel<<<grid, block>>>(depth, normals, reproj, image);
     // cudaSafeCall ( cudaGetLastError () );
 
-    // p_int.download(_32buf,sizeof(u32B4)*640);
-    // ck(cudaMallocHost((void **)&host_points, sizeof( float3)*480*640));
-    image.download(_32buf, 4 * 640);
-    cv::Mat asdsa(480, 640, CV_8UC4, _32buf);
+    // p_int.download(_32buf,sizeof(u32B4)*im_width);
+    // ck(cudaMallocHost((void **)&host_points, sizeof( float3)*im_height*im_width));
+    image.download(_32buf, 4 * im_width);
+    cv::Mat asdsa(im_height, im_width, CV_8UC4, _32buf);
     cv::imshow("a", asdsa);
     cv::waitKey(1);
     // waitAllDefaultStream();
@@ -243,7 +243,7 @@ __global__ void seta(uint32_t *ptr, uint32_t *len)
         {
             continue;
         }
-        unsigned int val = atomicInc(&len[2000], 0xffffff);
+        unsigned int val = atomicInc(&len[20000], 0xffffff);
         // len[val] = last;
         len[val] = last;
         last = ptr[i];
@@ -280,7 +280,7 @@ __global__ void read_k(uint32_t *out, uint32_t *bitmap)
         bool ret = bitmap[tarr >> SHIFT] & (1 << (tarr & MASK));
         if (ret)
         {
-            unsigned int val = atomicInc(&out[2000], 0xffffff);
+            unsigned int val = atomicInc(&out[20000], 0xffffff);
             out[val] = tarr;
             printf("%d\n", 1);
         }
@@ -317,7 +317,7 @@ struct bit
     }
     __host__ void clr()
     {
-        cudaMemset(d_bitmap, 0, (1 + N / BITS_PER_WORD) * sizeof(maptype));
+        ck(cudaMemset(d_bitmap, 0, (1 + N / BITS_PER_WORD) * sizeof(maptype)));
         // memset(h_bitmap, 0, (1 + N / BITS_PER_WORD) * sizeof(maptype));
         // curr_bitmap = h_bitmap;
     }
@@ -342,7 +342,7 @@ __global__ void readk(uint32_t *out, struct bit gb)
 
         if (ret)
         {
-            unsigned int val = atomicInc(&out[2000], 0xffffff);
+            unsigned int val = atomicInc(&out[20000], 0xffffff);
             out[val] = tarr;
         }
     }
@@ -355,8 +355,7 @@ public:
     float num_frames = 3010;
 
     float base2world[4 * 4];
-    int im_width = 640;  // 743;// 640;
-    int im_height = 480; // 465;//480;
+
     float voxel_size = 0.01f;
     float trunc_margin;
 
@@ -365,17 +364,21 @@ public:
     TSDF(viewer *v)
     {
         mp_v = v;
-        trunc_margin = voxel_size * 5;
+        trunc_margin = VOXELSIZE_PCUBE * 5;
     }
     DataSet<float> *parser;
     // dataset_tum *parser;
-
+    Mat posemat;
     void loop()
     {
         mapmanages mm;
         cv::FileStorage fs("../config.yaml", cv::FileStorage::READ);
+
+        cv::FileStorage fspose("pose.yaml", cv::FileStorage::READ);
+
         parser = new DataSet<float>(fs["matpose"]);
         gpu_cam_K = make_float4(parser->fx, parser->fy, parser->cx, parser->cy);
+        printf("gpu_cam_K %f %f %f %f \n",parser->fx, parser->fy, parser->cx, parser->cy);
         checkCUDA(cudaGetLastError());
 
         vector<struct Voxel32 *> host_boxptr(ACTIVATE_VOXNUM); // struct Voxel32 *[ACTIVATE_VOXNUM];
@@ -386,22 +389,22 @@ public:
         struct kernelPara *gpu_kpara;
         cudaMalloc((void **)&gpu_kpara, sizeof(struct kernelPara));
         Timer tm;
-        Patch<float3> depthScaled(480, 640);
-        Patch<float3> gocloud(480, 640);
+        Patch<float3> depthScaled(im_height, im_width);
+        Patch<float3> gocloud(im_height, im_width);
 
         float3 *host_points; //=new float3;
-        ck(cudaMallocHost((void **)&host_points, sizeof(float3) * 480 * 640));
+        ck(cudaMallocHost((void **)&host_points, sizeof(float3) * im_height * im_width));
         // std::cout<<sizeof( float3)<<std::endl;
 
         //
-        Patch<unsigned short> depth_device_img(480, 640);
-        Patch<unsigned short> device_depth_src(480, 640);
+        Patch<unsigned short> depth_device_img(im_height, im_width);
+        Patch<unsigned short> device_depth_src(im_height, im_width);
 
         Patch<float4> points_pyr, normals_pyr;
-        Patch<uint32_t> p_int(480, 640);
+        Patch<uint32_t> p_int(im_height, im_width);
         RGB *host_32buf;
-        Patch<RGB> imgcuda(480, 640);
-        ck(cudaMallocHost((void **)&host_32buf, sizeof(RGB) * 480 * 640));
+        Patch<RGB> imgcuda(im_height, im_width);
+        ck(cudaMallocHost((void **)&host_32buf, sizeof(RGB) * im_height * im_width));
 
         Intr intr(parser->cam_K);
         intr.sca = 1.0f / parser->depth_factor;
@@ -413,12 +416,12 @@ public:
         fs["save_skip_list_num"] >> save_skip_list_num;
         int show_cloud;
         fs["show_cloud"] >> show_cloud;
-
+        fspose["pose"] >> posemat;
         float *g_cam;
         cudaMalloc((void **)&g_cam, sizeof(float) * 16);
 
         uint32_t *_32buf;
-        ck(cudaMallocHost((void **)&_32buf, sizeof(u32B4) * 480 * 640));
+        ck(cudaMallocHost((void **)&_32buf, sizeof(u32B4) * im_height * im_width));
         raycast ray;
 
         struct device::Tnte fun;
@@ -427,87 +430,96 @@ public:
         fun.im_width = im_width;
         fun.voxel_size = voxel_size;
         fun.trunc_margin = trunc_margin;
-        thrust::device_vector<uint32_t> kset(640 * 480, 0);
+        thrust::device_vector<uint32_t> kset(im_width * im_height, 0);
         uint32_t *hv_ptr; // = thrust::raw_pointer_cast(kset.data());
 
         thrust::device_vector<uint32_t> out(2048, 0);
         uint32_t *outprt = thrust::raw_pointer_cast(out.data());
         // uint32_t *zin_number;
-        (cudaMallocHost((void **)&hv_ptr, 640 * 480 * sizeof(uint32_t)));
+        (cudaMallocHost((void **)&hv_ptr, 40 * im_width * im_height * sizeof(uint32_t)));
 
         CBTInserter ci(ACTIVATE_VOXNUM);
         struct bit b;
-        for (int frame_idx = 0; frame_idx < parser->pose.frames - 1; frame_idx += 1)
+        for (int frame_idx = 0; frame_idx < 4000; frame_idx += 1)
         {
             // std::cout << "frame_idx:" << frame_idx << std::endl;
             bool over_ = parser->ReadNextTUM(frame_idx);
-            // parser->m_pose.val[3] -= 15.997225f;
-            // parser->m_pose.val[7] -= -1.722280;
-            // parser->m_pose.val[11] -= 8.929637;
-            if (!over_)
-            {
-                // cout << "over" << endl;
-                // mm.save_tsdf_mode_grids(fs["matpose"]);
-                // mm.exmatcloud(mm.cpu_kpara.center);
-                // string savename = string(fs["matpose"]) + "ours_new.ply";
-                // mm.savetoply("out.ply");
-                // parser->Mat_save_by_binary(points, cv::format("pc/%04d.point", frame_idx));
-                // parser->Mat_save_by_binary(color, cv::format("pc/%04d.color", frame_idx));
-                // if (points.rows > 0)
-                //     mp_v->inset_cloud("curr", cv::viz::WCloud(points, color));
-                // cv::Affine3f affpose(cam_pose);
-                //           mm.gpu_para->extall = true;
-                // mm.exmatcloud(mm.cpu_kpara.center);
-                mm.saveallnode();
-                mm.SaveVoxelGrid2SurfacePointCloud(cv::format("pc/over%d", frame_idx));
-                cout << cv::format("pc/over%d", frame_idx) << endl;
-                assert(0);
-                break;
-            }
+            // // parser->m_pose.val[3] -= 15.997225f;
+            // // parser->m_pose.val[7] -= -1.722280;
+            // parser->m_pose = posemat.at<cv::Vec<double, 16>>(frame_idx, 0);
+            cv::Affine3f iddd(parser->m_pose.val);
+            // cout << parser->m_pose << endl;
+            // memcpy(parser->m_pose.val,iddd.matrix.val,sizeof(float)*16);
+            // if (!over_)
+            // {
+            //     // cout << "over" << endl;
+            //     // mm.save_tsdf_mode_grids(fs["matpose"]);
+            //     // mm.exmatcloud(mm.cpu_kpara.center);
+            //     // string savename = string(fs["matpotranslatione"]) + "ours_new.ply";
+            //     // mm.savetoply("out.ply");
+            //     // parser->Mat_save_by_binary(points, cv::format("pc/%04d.point", frame_idx));
+            //     // parser->Mat_save_by_binary(color, cv::format("pc/%04d.color", frame_idx));
+            //     // if (points.rows > 0)
+            //     //     mp_v->inset_cloud("curr", cv::viz::WCloud(points, color));
+            //     // cv::Affine3f affpose(cam_pose);
+            //     //           mm.gpu_para->extall = true;
+            //     // mm.exmatcloud(mm.cpu_kpara.center);
+            //     mm.saveallnode();
+            //     mm.SaveVoxelGrid2SurfacePointCloud(cv::format("pc/over%d", frame_idx));
+            //     cout << cv::format("pc/over%d", frame_idx) << endl;
+            //     assert(0);
+            //     break;
+            // }
+
+            // parser->depth_src = cv::imread(cv::format("/home/u20/dataset/code/U-V-disparity/viz_elas_setero/build/depth/%d.png", frame_idx), cv::IMREAD_ANYDEPTH);
+
+            // parser->rgb_ = cv::imread(cv::format("/home/u20/dataset/code/U-V-disparity/viz_elas_setero/build/rgb/%d.png", frame_idx));
+
             tm.Start();
             b.clr();
-            ck(cudaMemcpy(mm.cpu_kpara.dev_rgbdata, parser->rgb_.data, parser->rgb_.rows * parser->rgb_.cols * 3, cudaMemcpyHostToDevice)); //上传彩色图像到GPU
-            device_depth_src.upload(parser->depth_src.ptr<uint16_t>(), parser->depth_src.step);                                             //上传深度图
-            bilateralFilter2(device_depth_src, depth_device_img, 7, 4.5f, 0.04f);                                                           //双边滤波
-            memcpy(mm.cpu_kpara.cam2base, &parser->m_pose.val[0], 4 * 4 * sizeof(float));                                                   //上传位姿
-            ck(cudaMemcpy((void *)g_cam, (void *)(&parser->m_pose.val[0]), sizeof(float) * 16, cudaMemcpyHostToDevice));                    //上传位姿
+            //
+            ck(cudaMemcpy(mm.cpu_kpara.dev_rgbdata, parser->rgb_.data, parser->rgb_.rows * parser->rgb_.cols * 3, cudaMemcpyHostToDevice)); // 上传彩色图像到GPU
+            device_depth_src.upload(parser->depth_src.ptr<uint16_t>(), parser->depth_src.step);                                             // 上传深度图
+            bilateralFilter2(device_depth_src, depth_device_img, 7, 4.5f, 0.04f);                                                           // 双边滤波
+            memcpy(mm.cpu_kpara.cam2base, &parser->m_pose.val[0], 4 * 4 * sizeof(float));                                                   // 上传位姿
+            ck(cudaMemcpy((void *)g_cam, (void *)(&parser->m_pose.val[0]), sizeof(float) * 16, cudaMemcpyHostToDevice));                    // 上传位姿
             dim3 block_scale(32, 32);
             dim3 grid_scale(divUp(parser->depth_src.cols, block_scale.x), divUp(parser->depth_src.rows, block_scale.y));
-            // depthScaled.download(pnormal,sizeof(float3)*640);
+            // depthScaled.download(pnormal,sizeof(float3)*im_width);
             {
                 // Timer seta2("gpuread");
                 // Timer seta2("scaleDepth");
-                device::scaleDepth<<<grid_scale, block_scale>>>(hv_ptr, depth_device_img, depthScaled, gocloud, intr, mm.cpu_kpara, b.d_bitmap); //深度图预处理
+                device::scaleDepth<<<grid_scale, block_scale>>>(hv_ptr, depth_device_img, depthScaled, gocloud, intr, mm.cpu_kpara, b.d_bitmap); // 深度图预处理
                 ck(cudaDeviceSynchronize());
                 {
-                    hv_ptr[2000] = 0;
+                    hv_ptr[20000] = 0;
                     // b.togpu();
                     readk<<<256, 256>>>(hv_ptr, b);
                     ck(cudaDeviceSynchronize());
                 }
             }
-            // cout << hv_ptr[2000] << endl;
-            // computePointNormals(intr, depth_device_img, points_pyr, normals_pyr);
-            // renderImage(intr, depth_device_img, points_pyr, normals_pyr, imgcuda, host_32buf);
+            cout << "hv_ptr" << hv_ptr[20000] << " " << hv_ptr[20000 - 1] << endl;
+            computePointNormals(intr, depth_device_img, points_pyr, normals_pyr);
+            renderImage(intr, depth_device_img, points_pyr, normals_pyr, imgcuda, host_32buf);
 
-            // for (k = 0; k < 640 * 480; k++)
+            // for (k = 0; k < im_width * im_height; k++)
             //     ci.insert(_32buf[k]);
             // tm.PrintSeconds("a");
             // {
             //     Timer t("sett");
-            //     std::set<uint32_t> set32(_32buf, _32buf + 640 * 480);
+            //     std::set<uint32_t> set32(_32buf, _32buf + im_width * im_height);
             // }
             // for (thrust::device_vector<uint32_t>::iterator it = kset.begin(); it != kvend; it++)
             // {
             //     set3222.insert(*it);
             // }
             // // 当前深度图 点云
-            //  gocloud.download(host_points, 12 * 640); //当前帧的点云
-            // cv::Mat asdp(480 * 640, 1, CV_32FC3, &host_points[0].x);
+            //  gocloud.download(host_points, 12 * im_width); //当前帧的点云
+            // cv::Mat asdp(im_height * im_width, 1, CV_32FC3, &host_points[0].x);
             // mp_v->inset_depth2(asdp, cv::Affine3f::Identity());
-            // cv::waitKey(1);
+            cv::waitKey(1);
             int i = 0;
-            for (int k = 0; k < hv_ptr[2000]; k++)
+            for (int k = 0; k < hv_ptr[20000]; k++)
             {
                 uint32_t indexa = hv_ptr[k] & 0xffffff; // box相对坐标 取前24位
                 if (indexa == 0)                        // || last == aaaaa[i])   //相机原点和无效深度点忽略，
@@ -515,7 +527,7 @@ public:
                 // last = aaaaa[i];
                 // cout << aaaaa[i] << " " << it << endl;
 
-                if ((mm.pboxs)[indexa] == 0) //此空间未初始化，从记忆库拿
+                if ((mm.pboxs)[indexa] == 0) // 此空间未初始化，从记忆库拿
                 {
                     host_boxptr[i] = mm.getidlebox(indexa);
                     (mm.pboxs)[indexa] = host_boxptr[i];
@@ -526,7 +538,7 @@ public:
 
                     ck(cudaMemcpyAsync((void *)&host_boxptr[i]->index, (void *)(&u32), sizeof(uint32_t), cudaMemcpyHostToDevice));
                 }
-                else //已经重建过
+                else // 已经重建过
                 {
                     host_boxptr[i] = (mm.pboxs)[indexa];
                 }
@@ -534,10 +546,10 @@ public:
                 if (i >= ACTIVATE_VOXNUM - 2)
                     break;
             }
-            // cout << "i=" << i << " " << 0 << " " << endl;
+            cout << "i=" << i << " " << 0 << " " << endl;
             assert(i != 0), assert(i < ACTIVATE_VOXNUM);
 
-            //将需要处理的box地址拷贝到GPU
+            // 将需要处理的box地址拷贝到GPU
             ck(cudaMemcpy((void *)dev_boxptr, (void *)&host_boxptr[0], (i) * sizeof(struct Voxel32 *), cudaMemcpyHostToDevice));
             {
 
@@ -553,17 +565,18 @@ public:
                                     cv::format(" cloudBoxs:%ld", mm.mcps.mp_cpuVoxel32.size());
             // mp_v->setstring(debugtext);
             cout << debugtext << endl;
-            //显示当前点云 true false
+            // 显示当前点云 true false
             if (show_cloud == 1 || frame_idx % 50 == 30)
             {
                 // {
-                // mm.gpu_para->extall = true;
-                // mm.exmatcloud(mm.cpu_kpara.center);
+                mm.gpu_para->extall = true;
+                mm.exmatcloud(mm.cpu_kpara.center);
                 // }
                 // // if (mm.gpu_pbox_free.size() < 1500 || frame_idx % 50 == 30)
-                // if (mm.curr_point.rows > 0)
-                //     mp_v->inset_cloud("curr1", cv::viz::WCloud(mm.curr_point, mm.curr_color)); // cv::viz::Color::red())); // color
-
+                if (mm.curr_point.rows > 0)
+                    mp_v->inset_cloud("curr1", cv::viz::WCloud(mm.curr_point, mm.curr_color)); // cv::viz::Color::red())); // color
+                // iddd=iddd.translate( cv::Vec3f(0,0,-8));
+                // mp_v-> setpose(iddd);
                 // parser->Mat_save_by_binary(points, cv::format("pc/%04d.point", frame_idx));
                 // parser->Mat_save_by_binary(color, cv::format("pc/%04d.color", frame_idx));
 
@@ -577,17 +590,24 @@ public:
                 // cv::imwrite("bt.png", bt);
                 // string savename = string(fs["matpose"]) + "ours_new22.ply";
             }
+            // while (1)
+            // {
+            //     char key = cv::waitKey(10);
+
+            //     if (key == 'n')
+            //         break;
+            // }
             if (mm.gpu_pbox_free.size() < 500 || frame_idx % 50 == 30)
             {
-                     mm.gpu_para->extall = true;
+                mm.gpu_para->extall = true;
                 mm.exmatcloud(mm.cpu_kpara.center);
 
                 u64B4 src_center = mm.cpu_kpara.center;
-                mm.cpu_kpara.center.x = std::floor(parser->m_pose.val[3] * 3.125f);
-                mm.cpu_kpara.center.y = std::floor(parser->m_pose.val[7] * 3.125f);
-                mm.cpu_kpara.center.z = std::floor(parser->m_pose.val[11] * 3.125f);
+                mm.cpu_kpara.center.x = std::floor(parser->m_pose.val[3] * VOXELSIZE_INV);
+                mm.cpu_kpara.center.y = std::floor(parser->m_pose.val[7] * VOXELSIZE_INV);
+                mm.cpu_kpara.center.z = std::floor(parser->m_pose.val[11] * VOXELSIZE_INV);
                 u64B4 DS_N = src_center - mm.cpu_kpara.center;
-                mm.movenode_6_28(DS_N, src_center, mm.cpu_kpara.center); //转换坐标后在范围内就保留 不在范围内就移除，超过次数也移除
+                mm.movenode_6_28(DS_N, src_center, mm.cpu_kpara.center); // 转换坐标后在范围内就保留 不在范围内就移除，超过次数也移除
 
                 mm.move2center(DS_N, src_center, mm.cpu_kpara.center);
 
@@ -630,7 +650,7 @@ public:
             // cv::Mat shot =mp_v->getScreenshot();
             // cv::imshow("shot",shot);
             // cv::imwrite(cv::format("shot%d.png",frame_idx),shot);
-            //显示轨迹 debug信息
+            // 显示轨迹 debug信息
             // if (true)
             // {
             //
@@ -660,8 +680,8 @@ public:
             // }
         }
         mm.saveallnode();
-        string save_p=fs["matpose"];
-        mm.SaveVoxelGrid2SurfacePointCloud(save_p+cv::format("/mgfusion"));
+        string save_p = fs["matpose"];
+        mm.SaveVoxelGrid2SurfacePointCloud(save_p + cv::format("/mgfusion"));
         fs.release();
         assert(0);
         // mp_v->pthd.join();
