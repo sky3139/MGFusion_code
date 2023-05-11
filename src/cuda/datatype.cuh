@@ -5,7 +5,7 @@
 
 #define CUBEVOXELSIZE (32)
 #define DIV_CUBEVOXELSIZE (1.0f / CUBEVOXELSIZE)
-#define VOXELSIZE_PCUBE (0.04f)
+#define VOXELSIZE_PCUBE (0.02f)
 #define ACTIVATE_VOXNUM (2048*1)
 #define DEPTHFACTOR (0.001f)
 
@@ -329,7 +329,7 @@ struct exmatcloud_para
     u64B4 center;
     unsigned int dev_points_num = 0;
     bool extall;
-    bool mask[2048];
+    bool mask[2048*4];
     // uint8_t buf[512-8-4];
 };
 

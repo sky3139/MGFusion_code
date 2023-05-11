@@ -45,7 +45,7 @@ public:
     cv::Mat points, color;
     struct kernelPara cpu_kpara;
     uint8_t tfidex = 0;
-    void movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &src_center, u64B4 &now_center);
+    void movenode_62(u64B4 &src_center, u64B4 &now_center);
     void movenode_6_28(u64B4 &src_center, u64B4 &src, u64B4 &now_center);
     void saveallnode();
 

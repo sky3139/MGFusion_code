@@ -145,8 +145,8 @@ __global__ void render_image_kernel(const Patch<ushort> depth, const Patch<float
 
         float3 N = make_float3(v4.x, v4.y, v4.z);
 
-        const float Ka = 0.7f; // ambient coeff  环境系数 
-        const float Kd = 0.3f; // diffuse coeff  扩散系数 
+        const float Ka = 0.7f; // ambient coeff  环境系数
+        const float Kd = 0.3f; // diffuse coeff  扩散系数
         const float Ks = 0.7f; // specular coeff 镜面反射系数
         const float n = 20.f;  // specular power
 
@@ -196,6 +196,7 @@ void renderImage(const Intr &intr, const Patch<unsigned short> &depth,
                  Patch<float4> &points, Patch<float4> &normals,
                  Patch<RGB> &image, RGB *_32buf)
 {
+    static int cnt = 0;
     // const device::Depth& d = (const device::Depth&)depth;
     // const device::Normals& n = (const device::Normals&)normals;
     Reprojector reproj(intr.fx, intr.fy, intr.cx, intr.cy);
@@ -219,6 +220,8 @@ void renderImage(const Intr &intr, const Patch<unsigned short> &depth,
     image.download(_32buf, 4 * im_width);
     cv::Mat asdsa(im_height, im_width, CV_8UC4, _32buf);
     cv::imshow("a", asdsa);
+    cv::imwrite(cv::format("shot/%d.jpg", cnt), asdsa);
+    cnt++;
     cv::waitKey(1);
     // waitAllDefaultStream();
 }
@@ -378,7 +381,7 @@ public:
 
         parser = new DataSet<float>(fs["matpose"]);
         gpu_cam_K = make_float4(parser->fx, parser->fy, parser->cx, parser->cy);
-        printf("gpu_cam_K %f %f %f %f \n",parser->fx, parser->fy, parser->cx, parser->cy);
+        printf("gpu_cam_K %f %f %f %f \n", parser->fx, parser->fy, parser->cx, parser->cy);
         checkCUDA(cudaGetLastError());
 
         vector<struct Voxel32 *> host_boxptr(ACTIVATE_VOXNUM); // struct Voxel32 *[ACTIVATE_VOXNUM];
@@ -611,9 +614,9 @@ public:
 
                 mm.move2center(DS_N, src_center, mm.cpu_kpara.center);
 
-                // if (mm.all_point[0].rows > 0)
-                //     // mm.SaveVoxelGrid2SurfacePointCloud(cv::format("pc/%d", frame_idx));
-                //     mp_v->inset_cloud("all", cv::viz::WCloud(mm.all_point[0], mm.all_point[1])); // cv::viz::Color::blue())); //  color
+                if (mm.all_point[0].rows > 0)
+                    //     // mm.SaveVoxelGrid2SurfacePointCloud(cv::format("pc/%d", frame_idx));
+                    mp_v->inset_cloud("all", cv::viz::WCloud(mm.all_point[0], cv::viz::Color::blue())); // )); //  color
             }
 
             // atime[2] = ;
@@ -647,9 +650,9 @@ public:
             //     // std::cout<<""<<atime[1]<<","<<atime[0]<<std::endl;
             // }
 
-            // cv::Mat shot =mp_v->getScreenshot();
-            // cv::imshow("shot",shot);
-            // cv::imwrite(cv::format("shot%d.png",frame_idx),shot);
+            cv::Mat shot = mp_v->getScreenshot();
+            cv::imshow("shot", shot);
+            cv::imwrite(cv::format("shot/%d.png", frame_idx), shot);
             // 显示轨迹 debug信息
             // if (true)
             // {
@@ -664,7 +667,7 @@ public:
             // mm.mcps.margCpuVoxel32Tocloud(po_int, col_or);
             // if (po_int.rows > 0)
             //     mp_v->inset_cloud("curr22", cv::viz::WCloud(po_int)); // col_or
-            // cv::waitKey(1);
+            cv::waitKey(0);
             // if (mm.gpu_pbox_use.size() > 500)
             // {
 

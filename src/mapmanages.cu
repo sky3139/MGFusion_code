@@ -152,12 +152,12 @@ void mapmanages::move2center(u64B4 &dst, u64B4 &src_center, u64B4 &now_center)
         now_local.x = u32_src.x + dst.x;
         now_local.y = u32_src.y + dst.y;
         now_local.z = u32_src.z + dst.z;
-        if ((abs(now_local.x) > 60) || (abs(now_local.y) > 60) || (abs(now_local.z) > 60))
-        {
-            SaveVoxelGrid2SurfacePointCloud(cv::format("pc/%d", 0));
+        // if ((abs(now_local.x) > 60) || (abs(now_local.y) > 60) || (abs(now_local.z) > 60))
+        // {
+        //     SaveVoxelGrid2SurfacePointCloud(cv::format("pc/%d", 0));
 
-            assert(0);
-        }
+        //     assert(0);
+        // }
         u32B4 u32new = u32_src;
         u32new.x = now_local.x;
         u32new.y = now_local.y;
@@ -196,7 +196,7 @@ void mapmanages::movenode_6_28(u64B4 &dst, u64B4 &src_center, u64B4 &now_center)
     // cout << cnnn << " " << gpu_pbox_use.size() << endl;
     // free(pboxs), pboxs = cpu_pbox;
 }
-void mapmanages::movenode_62(struct Voxel32 **&dev_boxptr, u64B4 &dst, u64B4 &now_center)
+void mapmanages::movenode_62( u64B4 &dst, u64B4 &now_center)
 {
     Timer t("movenode_62");
     struct Voxel32 srcbox;
