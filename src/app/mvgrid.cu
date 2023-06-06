@@ -579,7 +579,7 @@ public:
                 if (mm.curr_point.rows > 0)
                     mp_v->inset_cloud("curr1", cv::viz::WCloud(mm.curr_point, mm.curr_color)); // cv::viz::Color::red())); // color
                 // iddd=iddd.translate( cv::Vec3f(0,0,-8));
-                // mp_v-> setpose(iddd);
+                mp_v-> setpose(iddd);
                 // parser->Mat_save_by_binary(points, cv::format("pc/%04d.point", frame_idx));
                 // parser->Mat_save_by_binary(color, cv::format("pc/%04d.color", frame_idx));
 
@@ -667,7 +667,7 @@ public:
             // mm.mcps.margCpuVoxel32Tocloud(po_int, col_or);
             // if (po_int.rows > 0)
             //     mp_v->inset_cloud("curr22", cv::viz::WCloud(po_int)); // col_or
-            cv::waitKey(0);
+            cv::waitKey(10);
             // if (mm.gpu_pbox_use.size() > 500)
             // {
 
