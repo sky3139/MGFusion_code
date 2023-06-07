@@ -15,7 +15,7 @@ save_skip_list_num: 800  #2 load
 # kitchen" 
 # grey_white_room"
 # matpose: "/home/u20/dataset/code/U-V-disparity/viz_elas_setero/build"
-matpose: "/home/u20/dataset/00"
-
+# matpose: "/home/u20/dataset/00"
+matpose: "/home/u20/dataset/paper/f2_pioneer_360"
 show_cloud: 1
 #True

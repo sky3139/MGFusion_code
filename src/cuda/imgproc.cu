@@ -163,7 +163,7 @@ namespace device
         now_local.z = src_lo.z + dst.z;
         if ((abs(now_local.x) > 126) || (abs(now_local.y) > 126) || (abs(now_local.z) > 126))
         {
-            mask[blockId] = false; //转换成点云
+            mask[blockId] = false; // 转换成点云
             // temp->index = u32B4(0);
             nowid[blockId].u32 = -1;
             srcid[blockId].u32 = -1;
@@ -177,7 +177,7 @@ namespace device
         // temp->index.cnt = now_int;
         if (now_int == 0)
         {
-            mask[blockId] = false; //转换成点云
+            mask[blockId] = false; // 转换成点云
         }
     }
     __global__ void
@@ -228,7 +228,7 @@ namespace device
             kset[y * depth.cols + x] = 0;
             return;
         }
-        float Dp = (dpval-1000) * intr.sca;
+        float Dp = (dpval - 1000) * intr.sca;
 
         PosType xp = intr.reprojector(x, y, Dp);
 
@@ -256,9 +256,9 @@ namespace device
         gcloud(y, x) = gp; // Dp * 0.0002f; //  / 1000.f; //meters
 
         u32B4 vecs;
-        int16_t vx = __float2int_rd(gp.x * (VOXELSIZE_INV)); //向下取整 __float2int_rn __float2int_rd rn是求最近的偶数，rz是逼近零，ru是向上舍入[到正无穷]，rd是向下舍入[到负无穷]。  std::floor
-        int16_t vy = __float2int_rd(gp.y * (VOXELSIZE_INV)); //向下取整
-        int16_t vz = __float2int_rd(gp.z * (VOXELSIZE_INV)); //向下取整
+        int16_t vx = __float2int_rd(gp.x * (VOXELSIZE_INV)); // 向下取整 __float2int_rn __float2int_rd rn是求最近的偶数，rz是逼近零，ru是向上舍入[到正无穷]，rd是向下舍入[到负无穷]。  std::floor
+        int16_t vy = __float2int_rd(gp.y * (VOXELSIZE_INV)); // 向下取整
+        int16_t vz = __float2int_rd(gp.z * (VOXELSIZE_INV)); // 向下取整
         u64B4 center = gpu_kpara.center;
         vecs.x = (int8_t)(vx - center.x);
         vecs.y = (int8_t)(vy - center.y);
@@ -271,7 +271,7 @@ namespace device
         atomicOr(p, val);
     }
 
-    //写论文测试用
+    // 写论文测试用
     __global__ void
     extract_kernel_test(Point3dim *output_base, struct Voxel32 *dev_pbox, exmatcloud_para *para)
     {
@@ -403,39 +403,21 @@ namespace device
             union voxel voxel = vdev_pbox->pVoxel[volume_idx];
             if (std::abs(voxel.tsdf) < 0.2f && voxel.weight > 0)
             {
-                // if (indexcnt > 1)
-                {
-                    unsigned int val = atomicInc(&para->dev_points_num, 0xffffff);
-                    // float3 &pos = output_base[val].pos;
 
-                    output_base->color[val] = voxel.color;
-                    // else                        vec[0] = (index.x + 1 * center.x) * VOXELSIZE + pt_grid_x * VOXELSIZE_PCUBE;
-
-                    // output_base->color[val] = make_uchar3(0, 255, 0);
-                    output_base->pose[val].x = (index.x + para->center.x) * VOXELSIZE+ pt_grid_x * VOXELSIZE_PCUBE;
-                    output_base->pose[val].y = (index.y + para->center.y) * VOXELSIZE + pt_grid_y * VOXELSIZE_PCUBE;
-                    output_base->pose[val].z = (index.z + para->center.z) * VOXELSIZE+ pt_grid_z * VOXELSIZE_PCUBE;
-                }
-
-                // assert(0);
-                // if (vdev_pbox.index.cnt == 0)
-
-                // pos.rgb[0] = 255;//voxel.rgb[0];
-                // pos.rgb[1] = 255;//index.x;//voxel.rgb[1];
-                // pos.rgb[2] = 255;//index.x;//voxel.rgb[2];
-                //    "     }
-                //     else if (vdev_pbox.index.cnt > 7)
-                //     {
-                //         _color.x = 255; // voxel.rgb[0];
-                //         _color.y = 0;   // index.x;//voxel.rgb[1];
-                //         _color.z = 0;   // index.x;//voxel.rgb[2];
-                //     }
-                //     else // if (index.type == 2)
-                //     {
-                //         _color.x = 0;   // voxel.rgb[0];
-                //         _color.y = 255; // index.x;//voxel.rgb[1];
-                //         _color.z = 0;   // index.x;//voxel.rgb[2];
-                //     }
+                unsigned int val = atomicInc(&para->dev_points_num, 0xffffff);
+                output_base->pose[val].x = (index.x + para->center.x) * VOXELSIZE + pt_grid_x * VOXELSIZE_PCUBE;
+                output_base->pose[val].y = (index.y + para->center.y) * VOXELSIZE + pt_grid_y * VOXELSIZE_PCUBE;
+                output_base->pose[val].z = (index.z + para->center.z) * VOXELSIZE + pt_grid_z * VOXELSIZE_PCUBE;
+                output_base->color[val] =make_uchar3(0, 0, 255);
+                // if (indexcnt > 7)//正在重建
+                //     output_base->color[val] = make_uchar3(255, 0, 0);
+                // else
+                 if (indexcnt == 0)//重建完成
+                    output_base->color[val] =voxel.color; 
+                // else // if (index.type == 2)
+                // {
+                //     output_base->color[val] = make_uchar3(0, 0, 255);
+                // }
             }
         }
     }
@@ -487,7 +469,7 @@ namespace device
             float pt_base_y = (u32.y + center.y) * VOXELSIZE + pt_grid_y * VOXELSIZE_PCUBE;
             float pt_base_z = (u32.z + center.z) * VOXELSIZE + pt_grid_z * VOXELSIZE_PCUBE;
 
-            //计算体素在相机坐标系的坐标
+            // 计算体素在相机坐标系的坐标
             float tmp_pt[3] = {0};
             tmp_pt[0] = pt_base_x - cam2base[0 * 4 + 3];
             tmp_pt[1] = pt_base_y - cam2base[1 * 4 + 3];
@@ -509,7 +491,7 @@ namespace device
             PosType img_dep = depthScaled(pt_pix_y, pt_pix_x); // meters
 
             // float img_dep = img_depu * 0.001f; //pt->xyz;//
-            if (img_dep.z <= 0.2 ) //|| img_dep.z > 6)
+            if (img_dep.z <= 0.2) //|| img_dep.z > 6)
                 continue;
             float diff = img_dep.z - pt_cam_z;
             if (diff <= -trunc_margin)

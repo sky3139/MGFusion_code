@@ -17,7 +17,7 @@ mapmanages::mapmanages()
     ck(cudaMalloc((void **)&dev_boxpool, sizeof(struct Voxel32) * ALLL_NUM)); //申请GPU显存
     ck(cudaMemset(dev_boxpool, 0, sizeof(struct Voxel32) * ALLL_NUM));
     ck(cudaMallocManaged(&gpu_para, sizeof(struct exmatcloud_para)));
-    ck(cudaMalloc(&cpu_kpara.dev_rgbdata, sizeof(uchar3) * 1241 * 376));
+    ck(cudaMalloc(&cpu_kpara.dev_rgbdata, sizeof(uchar3) * 640 * 480));
     checkCUDA(cudaGetLastError());
     for (int i = 0; i < ALLL_NUM; i++)
     {

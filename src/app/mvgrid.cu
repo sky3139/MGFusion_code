@@ -26,8 +26,11 @@
 #include "../tool/tree.h"
 using namespace std;
 
-int im_width = 1241; // 743;// 640;
-int im_height = 376; // 465;//480;、
+int im_width = 640;  // 743;// 640;
+int im_height = 480; // 465;//480;、
+
+// int im_width = 1241; // 743;// 640;
+// int im_height = 376; // 465;//480;、
 struct Reprojector
 {
     Reprojector() {}
@@ -443,15 +446,15 @@ public:
 
         CBTInserter ci(ACTIVATE_VOXNUM);
         struct bit b;
-        for (int frame_idx = 0; frame_idx < 4000; frame_idx += 1)
+        for (int frame_idx = 30; frame_idx < 4000; frame_idx += 1)
         {
             // std::cout << "frame_idx:" << frame_idx << std::endl;
             bool over_ = parser->ReadNextTUM(frame_idx);
             // // parser->m_pose.val[3] -= 15.997225f;
             // // parser->m_pose.val[7] -= -1.722280;
             // parser->m_pose = posemat.at<cv::Vec<double, 16>>(frame_idx, 0);
-            cv::Affine3f iddd(parser->m_pose.val);
-            // cout << parser->m_pose << endl;
+            cv::Affine3f iddd = parser->m_pose;
+            // cout << iddd.matrix<< endl;
             // memcpy(parser->m_pose.val,iddd.matrix.val,sizeof(float)*16);
             // if (!over_)
             // {
@@ -484,8 +487,8 @@ public:
             ck(cudaMemcpy(mm.cpu_kpara.dev_rgbdata, parser->rgb_.data, parser->rgb_.rows * parser->rgb_.cols * 3, cudaMemcpyHostToDevice)); // 上传彩色图像到GPU
             device_depth_src.upload(parser->depth_src.ptr<uint16_t>(), parser->depth_src.step);                                             // 上传深度图
             bilateralFilter2(device_depth_src, depth_device_img, 7, 4.5f, 0.04f);                                                           // 双边滤波
-            memcpy(mm.cpu_kpara.cam2base, &parser->m_pose.val[0], 4 * 4 * sizeof(float));                                                   // 上传位姿
-            ck(cudaMemcpy((void *)g_cam, (void *)(&parser->m_pose.val[0]), sizeof(float) * 16, cudaMemcpyHostToDevice));                    // 上传位姿
+            memcpy(mm.cpu_kpara.cam2base, &parser->m_pose.matrix.val, 4 * 4 * sizeof(float));                                               // 上传位姿
+            ck(cudaMemcpy((void *)g_cam, (void *)(&parser->m_pose.matrix.val), sizeof(float) * 16, cudaMemcpyHostToDevice));                // 上传位姿
             dim3 block_scale(32, 32);
             dim3 grid_scale(divUp(parser->depth_src.cols, block_scale.x), divUp(parser->depth_src.rows, block_scale.y));
             // depthScaled.download(pnormal,sizeof(float3)*im_width);
@@ -517,7 +520,7 @@ public:
             //     set3222.insert(*it);
             // }
             // // 当前深度图 点云
-            //  gocloud.download(host_points, 12 * im_width); //当前帧的点云
+            // gocloud.download(host_points, 12 * im_width); // 当前帧的点云
             // cv::Mat asdp(im_height * im_width, 1, CV_32FC3, &host_points[0].x);
             // mp_v->inset_depth2(asdp, cv::Affine3f::Identity());
             cv::waitKey(1);
@@ -579,7 +582,7 @@ public:
                 if (mm.curr_point.rows > 0)
                     mp_v->inset_cloud("curr1", cv::viz::WCloud(mm.curr_point, mm.curr_color)); // cv::viz::Color::red())); // color
                 // iddd=iddd.translate( cv::Vec3f(0,0,-8));
-                mp_v-> setpose(iddd);
+                // mp_v-> setpose(iddd);
                 // parser->Mat_save_by_binary(points, cv::format("pc/%04d.point", frame_idx));
                 // parser->Mat_save_by_binary(color, cv::format("pc/%04d.color", frame_idx));
 
@@ -606,15 +609,18 @@ public:
                 mm.exmatcloud(mm.cpu_kpara.center);
 
                 u64B4 src_center = mm.cpu_kpara.center;
-                mm.cpu_kpara.center.x = std::floor(parser->m_pose.val[3] * VOXELSIZE_INV);
-                mm.cpu_kpara.center.y = std::floor(parser->m_pose.val[7] * VOXELSIZE_INV);
-                mm.cpu_kpara.center.z = std::floor(parser->m_pose.val[11] * VOXELSIZE_INV);
+
+                cv::Vec3f tr = parser->m_pose.translation();
+                mm.cpu_kpara.center.x = std::floor(tr[0] * VOXELSIZE_INV);
+                mm.cpu_kpara.center.y = std::floor(tr[1] * VOXELSIZE_INV);
+                mm.cpu_kpara.center.z = std::floor(tr[2] * VOXELSIZE_INV);
                 u64B4 DS_N = src_center - mm.cpu_kpara.center;
                 mm.movenode_6_28(DS_N, src_center, mm.cpu_kpara.center); // 转换坐标后在范围内就保留 不在范围内就移除，超过次数也移除
 
                 mm.move2center(DS_N, src_center, mm.cpu_kpara.center);
 
                 if (mm.all_point[0].rows > 0)
+                    // mp_v->inset_cloud("all", cv::viz::WCloud(mm.all_point[0], mm.all_point[1])); // )); //  color
                     //     // mm.SaveVoxelGrid2SurfacePointCloud(cv::format("pc/%d", frame_idx));
                     mp_v->inset_cloud("all", cv::viz::WCloud(mm.all_point[0], cv::viz::Color::blue())); // )); //  color
             }
@@ -704,7 +710,7 @@ public:
             float pt_base_y = pt[1];
             float pt_base_z = pt[2];
 
-            float *cam2base = parser->m_pose.val;
+            float *cam2base; //= parser->m_pose.val;
 
             //     //计算体素在相机坐标系的坐标
             float tmp_pt[3] = {0};
